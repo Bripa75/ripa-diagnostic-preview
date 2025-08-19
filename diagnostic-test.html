@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Ripa Elevate — Free Diagnostic (Adaptive • 20 Q from 120 bank)</title>
+  <meta name="description" content="Adaptive Math & ELA diagnostic aligned to NYC/NYS standards. 20 questions administered from a 120-item bank. Private, instant report.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <style>
+    :root{
+      --bg:#070a12; --text:#eef2fb; --muted:#b7c0d9;
+      --glass: rgba(255,255,255,.06); --stroke: rgba(255,255,255,.12);
+      --accentA:#67e8f9; --accentB:#a78bfa;
+      --radius:18px; --shadow: 0 20px 50px rgba(0,0,0,.5); --glow: 0 0 60px rgba(103,232,249,.35);
+    }
+    *{box-sizing:border-box}
+    html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font-family:'Poppins',system-ui,Segoe UI,Roboto,Arial,sans-serif}
+    a{color:inherit;text-decoration:none}
+    .container{width:min(1100px,92%);margin:0 auto}
+
+    header{position:sticky;top:0;z-index:10;backdrop-filter: blur(10px) saturate(140%);
+      background:linear-gradient(180deg, rgba(7,10,18,.85), rgba(7,10,18,.5));border-bottom:1px solid var(--stroke)}
+    header .row{display:flex;align-items:center;justify-content:space-between;padding:14px 0}
+    .brand{display:flex;align-items:center;gap:10px;font-weight:700;letter-spacing:.2px}
+    .orb{width:12px;height:12px;border-radius:50%;background:linear-gradient(135deg,var(--accentA),var(--accentB));box-shadow:var(--glow)}
+    nav a{padding:10px 14px;border-radius:12px;opacity:.95;transition:.2s}
+    nav a:hover{background:var(--glass)}
+
+    .bg-gradient{
+      position:fixed;inset:0;z-index:-2;
+      background: radial-gradient(1200px 600px at 20% 10%, rgba(103,232,249,.12), transparent 40%),
+                  radial-gradient(1200px 600px at 80% 80%, rgba(167,139,250,.12), transparent 40%);
+      animation: floatBG 14s ease-in-out infinite alternate;
+    }
+    @keyframes floatBG{from{transform:translateY(-2%)}to{transform:translateY(2%)}}
+    canvas#fx{position:fixed;inset:0;z-index:-1;opacity:.35;pointer-events:none}
+
+    main{padding:28px 0 56px}
+    .pageTitle{font-size: clamp(22px, 3.8vw, 34px);font-weight:700;margin:10px 0}
+    .micro{color:var(--muted);font-size:14px}
+    .examCard{background:var(--glass);border:1px solid var(--stroke);border-radius:var(--radius);padding:16px;box-shadow:var(--shadow)}
+    .btns{display:flex;gap:10px;flex-wrap:wrap}
+    .btn{display:inline-flex;align-items:center;gap:8px;padding:12px 16px;border-radius:14px;border:1px solid var(--stroke);
+      background:var(--glass);font-weight:600;cursor:pointer;transition:.15s ease}
+    .btn.primary{background:linear-gradient(135deg, rgba(103,232,249,.18), rgba(167,139,250,.18));box-shadow:var(--glow)}
+    .btn:hover{transform:translateY(-1px);box-shadow:0 10px 28px rgba(0,0,0,.35)}
+
+    /* Stage */
+    .stage{display:grid;grid-template-columns:1.1fr .9fr;gap:16px}
+    .examTitle{font-weight:700;font-size:20px;margin:0 0 6px}
+    .examMuted{color:var(--muted);font-size:14px;margin:0 0 12px}
+
+    .qtext{font-size:18px;margin:0 0 10px}
+    .choices{display:grid;gap:10px}
+    .choices button{padding:12px 14px;border-radius:12px;border:1px solid var(--stroke);background:rgba(255,255,255,.04);color:var(--text);text-align:left;font-weight:600;cursor:pointer}
+    .choices button:hover{background:rgba(255,255,255,.08)}
+
+    .kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+    .kpiBox{background:var(--glass);border:1px solid var(--stroke);border-radius:12px;padding:12px;text-align:center}
+    .kpiBox .num{font-size:22px;font-weight:700}
+
+    .progBar{height:10px;background:rgba(255,255,255,.12);border-radius:999px;overflow:hidden}
+    .progFill{height:100%;width:0%;background:linear-gradient(90deg,var(--accentA),var(--accentB));transition:width .35s ease}
+
+    .pill{display:inline-block;padding:6px 10px;border-radius:999px;background:rgba(255,255,255,.06);border:1px solid var(--stroke);
+      margin:6px 6px 0 0;font-size:12px}
+
+    footer{border-top:1px solid var(--stroke);color:var(--muted);padding:28px 0 50px;text-align:center;margin-top:40px}
+
+    @media (max-width: 900px){
+      .stage{grid-template-columns:1fr}
+    }
+  </style>
+</head>
+<body>
+  <div class="bg-gradient" aria-hidden="true"></div>
+  <canvas id="fx" aria-hidden="true"></canvas>
+
+  <header>
+    <div class="container">
+      <div class="row">
+        <div class="brand"><span class="orb"></span><span>Ripa Elevate Academy</span></div>
+        <nav>
+          <a href="/">Home</a>
+          <a href="#report">Report</a>
+        </nav>
+      </div>
+    </div>
+  </header>
+
+  <main class="container">
+    <h1 class="pageTitle">Free Diagnostic — Adaptive Math & ELA</h1>
+    <p class="micro">20 questions (adaptive) selected from a 120-question bank. Private, instant report aligned to NYC/NYS standards families.</p>
+
+    <!-- Pre-start -->
+    <div class="examCard" id="prestart" style="margin:16px 0;">
+      <div class="row" style="display:flex;align-items:flex-end;justify-content:space-between;gap:12px">
+        <div>
+          <div class="examTitle" style="margin:0 0 6px">Set Up Your Diagnostic</div>
+          <p class="examMuted" style="margin:0">Choose a grade focus. The test adapts as you go (20 questions total).</p>
+        </div>
+        <div class="btns">
+          <label class="examMuted">Grade:
+            <select id="preGradeSel" style="margin-left:6px">
+              <option value="">Auto</option>
+              <option>2</option><option>3</option><option>4</option>
+              <option>5</option><option>6</option><option>7</option><option>8</option>
+            </select>
+          </label>
+          <button class="btn primary" type="button" id="beginExamBtn">Begin</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Live Exam -->
+    <div class="stage" id="app" style="display:none">
+      <!-- Left: question -->
+      <div class="examCard">
+        <div class="row" style="display:flex;justify-content:space-between;gap:12px;align-items:flex-end">
+          <div>
+            <div class="examTitle" id="sectionTitle">Math — Question 1</div>
+            <p class="examMuted" id="sectionHint">We’ll adjust difficulty as you go. Try your best!</p>
+          </div>
+          <div style="min-width:180px">
+            <div class="examMuted" id="progressText" style="text-align:center">1 / 20</div>
+            <div class="progBar" aria-label="Progress"><div class="progFill" id="progressFill"></div></div>
+          </div>
+        </div>
+        <h3 class="qtext" id="qtext">Loading…</h3>
+        <div class="choices" id="choices"></div>
+        <div class="btns" style="margin-top:12px"><button class="btn" id="finishBtn" type="button">Finish now</button></div>
+      </div>
+
+      <!-- Right: indicators -->
+      <div class="examCard">
+        <div class="examTitle">Live Indicators</div>
+        <p class="examMuted">These update as answers come in.</p>
+        <div class="kpis">
+          <div class="kpiBox">
+            <div class="examMuted">Estimated Level</div>
+            <div class="num" id="estLevel">—</div>
+          </div>
+          <div class="kpiBox">
+            <div class="examMuted">Confidence</div>
+            <div class="num" id="confidence">—</div>
+          </div>
+          <div class="kpiBox">
+            <div class="examMuted">Domain</div>
+            <div class="num" id="domainNow">—</div>
+          </div>
+        </div>
+        <div style="margin-top:12px">
+          <div class="examMuted">Strength signals</div>
+          <div id="strengths"><span class="examMuted">—</span></div>
+        </div>
+        <div style="margin-top:8px">
+          <div class="examMuted">Priority signals</div>
+          <div id="needs"><span class="examMuted">—</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Report -->
+    <div class="examCard" id="report" style="display:none;margin-top:16px">
+      <div class="row" style="display:flex;justify-content:space-between;gap:12px;align-items:center">
+        <div class="examTitle">Instant Report</div>
+        <div class="btns">
+          <button class="btn" onclick="window.print()">Download as PDF</button>
+          <a class="btn" href="#top" onclick="location.reload()">Restart</a>
+        </div>
+      </div>
+      <p class="examMuted">Estimates by domain, confidence, and a clear action plan. Targets reflect NYC/NYS grade expectations.</p>
+
+      <!-- Current -->
+      <div class="kpis">
+        <div class="kpiBox">
+          <div class="examMuted">Math level (current)</div>
+          <div class="num" id="mathLevel">—</div>
+        </div>
+        <div class="kpiBox">
+          <div class="examMuted">ELA level (current)</div>
+          <div class="num" id="elaLevel">—</div>
+        </div>
+        <div class="kpiBox">
+          <div class="examMuted">Overall confidence</div>
+          <div class="num" id="confOut">—</div>
+        </div>
+      </div>
+
+      <!-- Expected -->
+      <div class="kpis" style="margin-top:10px">
+        <div class="kpiBox">
+          <div class="examMuted">Math expected (NYC/NYS)</div>
+          <div class="num" id="mathExpected">—</div>
+          <div class="examMuted" id="mathGap" style="margin-top:6px">—</div>
+        </div>
+        <div class="kpiBox">
+          <div class="examMuted">ELA expected (NYC/NYS)</div>
+          <div class="num" id="elaExpected">—</div>
+          <div class="examMuted" id="elaGap" style="margin-top:6px">—</div>
+        </div>
+        <div class="kpiBox">
+          <div class="examMuted">Grade reference</div>
+          <div class="num" id="gradeRef">—</div>
+        </div>
+      </div>
+
+      <!-- Skills -->
+      <div style="margin-top:12px">
+        <div class="examMuted">Strengths</div><div id="strengthList"></div>
+      </div>
+      <div style="margin-top:8px">
+        <div class="examMuted">Priorities</div><div id="needList"></div>
+      </div>
+
+      <!-- Standards toggle -->
+      <div style="margin-top:12px">
+        <label class="examMuted" style="display:flex;align-items:center;gap:8px">
+          <input type="checkbox" id="stdToggle"> Show standards details
+        </label>
+        <div id="stdDetails" style="display:none; margin-top:8px" class="examMuted"></div>
+      </div>
+
+      <!-- Plan -->
+      <div style="margin-top:12px">
+        <div class="examMuted">Action plan</div>
+        <ul style="margin-top:6px">
+          <li id="plan1">2-week: 10–15 mins/day targeted practice in priority areas.</li>
+          <li id="plan2">4-week: Reassess with mini-check (10 mins) and adjust level.</li>
+        </ul>
+      </div>
+    </div>
+
+  </main>
+
+  <footer>
+    <div class="container">© <span id="year"></span> Ripa Elevate Academy · Private by design</div>
+  </footer>
+
+  <script>
+    // year
+    document.getElementById('year').textContent = new Date().getFullYear();
+
+    // background particles
+    const c = document.getElementById('fx'); const ctx = c.getContext('2d');
+    let w, h, particles;
+    function resize(){ w = c.width = innerWidth; h = c.height = innerHeight; make(); }
+    function make(){ particles = Array.from({length: 80}, () => ({ x: Math.random()*w, y: Math.random()*h, r: Math.random()*1.8+0.6, vx: (Math.random()-.5)*0.25, vy: (Math.random()-.5)*0.25 })); }
+    function step(){ ctx.clearRect(0,0,w,h); ctx.fillStyle = 'rgba(255,255,255,.7)'; for(const p of particles){ p.x += p.vx; p.y += p.vy; if(p.x<0||p.x>w) p.vx*=-1; if(p.y<0||p.y>h) p.vy*=-1; ctx.beginPath(); ctx.arc(p.x,p.y,p.r,0,Math.PI*2); ctx.fill(); } requestAnimationFrame(step); }
+    addEventListener('resize', resize); resize(); step();
+
+    /* =========================
+       Embedded Exam JS — Bank 120, Admin 20, Grade pre-pick, Adaptive path
+       ========================= */
+    (function(){
+      // ---- CONFIG ----
+      const BANK_SIZE = 120;   // build this many candidates per attempt
+      const ADMIN_LEN = 20;    // student only answers this many
+      const MIN_GRADE = 2, MAX_GRADE = 8;
+
+      // Simple expected level per grade
+      const expectedForGrade = g => {
+        if(!g) return null;
+        const gg = Math.max(MIN_GRADE, Math.min(MAX_GRADE, Number(g)));
+        return { math: gg, ela: gg };
+      };
+
+      // Standards families by skill tag (parent-friendly labels)
+      const TAG_TO_STD = {
+        'arithmetic':'NY-2–3.OA', 'parity':'NY-2.OA',
+        'place-value':'NY-3.NBT', 'rounding':'NY-3.NBT',
+        'fractions':'NY-3–5.NF', 'geometry':'NY-4.MD',
+        'decimals':'NY-5.NBT', 'percent':'NY-6.RP', 'unit-rate':'NY-6.RP',
+        'integers':'NY-6–7.NS', 'equations':'NY-6–7.EE',
+        'angles':'NY-7.G', 'functions':'NY-8.F', 'pythagorean':'NY-8.G',
+        'mainidea':'NY-ELA.RI/RL', 'inference':'NY-ELA.RI/RL',
+        'vocab':'NY-ELA.L', 'homophones':'NY-ELA.L',
+        'grammar':'NY-ELA.L', 'punctuation':'NY-ELA.L', 'context':'NY-ELA.RI'
+      };
+
+      // ---- SMALL HELPERS ----
+      const rand = n => Math.floor(Math.random()*n);
+      const pick = a => a[rand(a.length)];
+      const shuffle = a => a.map(v=>[Math.random(),v]).sort((x,y)=>x[0]-y[0]).map(x=>x[1]);
+      const within = (min,max)=> Math.floor(Math.random()*(max-min+1))+min;
+      function bump(map, key, delta){ map.set(key, (map.get(key)||0) + delta); }
+      function choiceSet(correct, wrongs){
+        const opts = shuffle([correct, ...wrongs]).slice(0,4);
+        return opts.length<4 ? shuffle([...opts, ...wrongs].slice(0,4)) : opts;
+      }
+
+      // ---- QUESTION GENERATORS ----
+      function genG2_OA_2(){ const a=within(1,10), b=within(1,10);
+        const c=String(a+b), wrongs=[a+b+1,a+b-1,a+b+2].filter(x=>x>0).map(String);
+        return {domain:'Math', t:`What is ${a} + ${b}?`, c, a:choiceSet(c,wrongs), tag:'arithmetic', lvl:2.4}; }
+      function genG2_OA_3(){ const n=within(2,99); const c=(n%2===0)?'Even':'Odd';
+        return {domain:'Math', t:`Is ${n} even or odd?`, c, a:choiceSet(c,['Even','Odd']), tag:'parity', lvl:2.5}; }
+      function genG3_NBT(){ const th=within(1,9), h=within(0,9), t=within(0,9), o=within(0,9);
+        const num = th*1000+h*100+t*10+o; const mode=pick(['value','round10','round100']);
+        if(mode==='value'){ const d=pick([['thousands',th,1000],['hundreds',h,100],['tens',t,10],['ones',o,1]]);
+          const c=String(d[1]*d[2]); const wrongs=[d[2],d[1],d[1]*10].map(String);
+          return {domain:'Math', t:`Value of the ${d[0]} digit in ${num}?`, c, a:choiceSet(c,wrongs), tag:'place-value', lvl:3.3}; }
+        if(mode==='round10'){ const rounded=Math.round(num/10)*10; const wrongs=[rounded+10,rounded-10,Math.round(num/100)*100];
+          return {domain:'Math', t:`Round ${num} to nearest ten.`, c:String(rounded), a:choiceSet(String(rounded),wrongs.map(String)), tag:'rounding', lvl:3.4}; }
+        const rounded=Math.round(num/100)*100; const wrongs=[rounded+100,rounded-100,Math.round(num/10)*10];
+        return {domain:'Math', t:`Round ${num} to nearest hundred.`, c:String(rounded), a:choiceSet(String(rounded),wrongs.map(String)), tag:'rounding', lvl:3.6}; }
+      function genFracEquiv(){ const base=[[1,2],[2,3],[3,4]][rand(3)], k=within(2,4);
+        const c=`${base[0]*k}/${base[1]*k}`, wrongs=[`${base[0]}/${base[1]+1}`,`${base[0]+1}/${base[1]}`,`${base[0]*k}/${base[1]*k+1}`];
+        return {domain:'Math', t:`Which fraction equals ${base[0]}/${base[1]}?`, c, a:choiceSet(c,wrongs), tag:'fractions', lvl:4.4}; }
+      function genAddLikeDen(){ const den=pick([4,6,8,10,12]); const a1=within(1,den-1), a2=within(1,den-1);
+        const num=a1+a2, c=`${num}/${den}`, wrongs=[`${a1}/${den}`,`${a2}/${den}`,`${Math.abs(a1-a2)}/${den}`];
+        return {domain:'Math', t:`${a1}/${den} + ${a2}/${den} = ?`, c, a:choiceSet(c,wrongs), tag:'fractions', lvl:4.8}; }
+      function genAreaPerim(){ const w=within(3,12), h=within(3,12), m=pick(['area','perim']);
+        if(m==='area'){ const c=String(w*h), wrongs=[w+h,w*h+2,w*h-2].map(String);
+          return {domain:'Math', t:`Area of ${w}×${h}?`, c, a:choiceSet(c,wrongs), tag:'geometry', lvl:4.6}; }
+        const p=2*(w+h), wrongs=[w+h,p+2,p-2].map(String);
+        return {domain:'Math', t:`Perimeter of ${w}×${h}?`, c:String(p), a:choiceSet(String(p), wrongs), tag:'geometry', lvl:4.6}; }
+      function genDecCompare(){ const a=(within(10,99)/100).toFixed(2), b=(within(10,99)/100).toFixed(2);
+        const bigger=parseFloat(a)>parseFloat(b)?a:b; const wrongs=[(parseFloat(bigger)-0.01).toFixed(2),'Equal',(parseFloat(bigger)+0.01).toFixed(2)];
+        return {domain:'Math', t:`Which is greater? ${a} or ${b}`, c:bigger, a:choiceSet(bigger,wrongs), tag:'decimals', lvl:5.0}; }
+      function genPercentOf(){ const base=[40,50,60,80,120][rand(5)], pct=[10,15,20,25,30][rand(5)];
+        const c=String(Math.round(base*pct/100)); const wrongs=[Math.round(base*(pct+5)/100),Math.round(base*(pct-5)/100),Math.round(base*(pct)/100)+2].map(String);
+        return {domain:'Math', t:`${pct}% of ${base} = ?`, c, a:choiceSet(c,wrongs), tag:'percent', lvl:6.1}; }
+      function genUnitRate(){ const qty=[3,4,5,6][rand(4)], cost=[6,8,10,12,15][rand(5)];
+        const c=(cost/qty).toFixed(2); const wrongs=[(cost/(qty+1)).toFixed(2),(cost/(qty-1)).toFixed(2),(cost/qty+0.25).toFixed(2)];
+        return {domain:'Math', t:`${qty} apples cost $${cost}. Cost per apple?`, c, a:choiceSet(c,wrongs), tag:'unit-rate', lvl:6.2}; }
+      function genIntAddSub(){ const a=within(-9,9), b=within(-9,9); const c=String(a+b); const wrongs=[a-b,-a+b,a+b+1].map(String);
+        return {domain:'Math', t:`Compute: ${a} + (${b})`, c, a:choiceSet(c,wrongs), tag:'integers', lvl:6.8}; }
+      function genOneStepEq(){ const x=within(2,12), b=within(2,10); const c=String(x); const wrongs=[x+1,x-1,b,x+b].map(String);
+        return {domain:'Math', t:`Solve for x: x + ${b} = ${x+b}`, c, a:choiceSet(c,wrongs), tag:'equations', lvl:6.5}; }
+      function genTriangleAngle(){ const a1=within(35,85), a2=within(35,85); let cVal=180-a1-a2; if(cVal<=10)cVal+=20;
+        const c=String(cVal), wrongs=[cVal+10,cVal-10,a1].map(String);
+        return {domain:'Math', t:`Triangle angles ${a1}° and ${a2}° → third angle?`, c, a:choiceSet(c,wrongs), tag:'angles', lvl:7.0}; }
+      function genSlope(){ const x1=within(0,6), y1=within(0,10), x2=x1+within(1,6), y2=y1+within(-5,5);
+        const c=String(((y2-y1)/(x2-x1)).toFixed(2)); const wrongs=[((y2-y1)/(x2-x1)+0.5).toFixed(2),((y2-y1)/(x2-x1)-0.5).toFixed(2),((y2+y1)/(x2-x1)).toFixed(2)];
+        return {domain:'Math', t:`Slope between (${x1},${y1}) and (${x2},${y2})?`, c, a:choiceSet(c,wrongs), tag:'functions', lvl:8.0}; }
+      function genPyth(){ const a=[3,5,6,7][rand(4)], b=[4,12,8,24][rand(4)]; const cVal=Math.round(Math.sqrt(a*a+b*b));
+        const c=String(cVal), wrongs=[a+b,cVal+1,cVal-1].map(String);
+        return {domain:'Math', t:`Right triangle legs ${a}, ${b}. Hypotenuse?`, c, a:choiceSet(c,wrongs), tag:'pythagorean', lvl:8.0}; }
+
+      const PASSAGES = [
+        { text:`The clouds gathered and the wind howled. Soon, droplets tapped the window.`,
+          qMI:{t:'What is most likely happening?', c:'A storm is starting', w:['A sunny day','A parade','A quiet night'], tag:'mainidea', lvl:4.8},
+          qINF:{t:'Which clue best supports your answer?', c:'Wind howled and droplets tapped the window', w:['Sunny day','People cheering','Birds chirping'], tag:'inference', lvl:5.0}
+        },
+        { text:`Many plants bend toward light. Gardeners rotate pots so stems stay straight.`,
+          qMI:{t:'What is the main idea?', c:'Plants grow toward light', w:['Plants hate water','Pots are heavy','Gardens are loud'], tag:'mainidea', lvl:4.6}
+        },
+        { text:`Maya practiced every day before the recital. When the curtain rose, she smiled with confidence.`,
+          qINF:{t:'What can you infer?', c:'Maya felt ready to perform', w:['She forgot her part','She was late','She left early'], tag:'inference', lvl:4.8}
+        }
+      ];
+      const SYN = [['eager','excited'],['scarce','rare'],['plentiful','abundant'],['assist','help'],['silent','quiet'],['purchase','buy']];
+      const ANT = [['scarce','plentiful'],['difficult','easy'],['ancient','modern'],['expand','shrink']];
+      const HOMO = [{sent:`___ bringing ___ books over ___.`, c:`They're, their, there`, w:[`Their, there, they're`,`There, they're, their`,`They're, there, their`], lvl:4.5}];
+      const SV_AGR = [{t:`Choose the correct sentence.`, c:`The dogs run fast.`, w:[`The dogs runs fast.`,`The dog run fast.`,`The dogs running fast.`], lvl:4.5}];
+      const COMMA = [{t:`Which sentence uses the comma correctly?`, c:`After the game, we went for pizza.`, w:[`After the game we went, for pizza.`,`After, the game we went for pizza.`,`After the game we, went for pizza.`], lvl:4.7}];
+
+      function genFromPassage(){ const p=pick(PASSAGES); const use=p.qMI && p.qINF ? pick(['mi','inf']) : (p.qMI ? 'mi':'inf');
+        const d=(use==='mi')? p.qMI:p.qINF;
+        return {domain:'ELA', t:`Read: “${p.text}” ${d.t}`, c:d.c, a:choiceSet(d.c,d.w), tag:d.tag, lvl:d.lvl}; }
+      function genSynonym(){ const [w,s]=pick(SYN); const wrongs=shuffle(SYN.map(x=>x[1]).filter(x=>x!==s)).slice(0,3);
+        return {domain:'ELA', t:`Best synonym for “${w}”?`, c:s, a:choiceSet(s,wrongs), tag:'vocab', lvl:4.0}; }
+      function genAntonym(){ const [w,a]=pick(ANT); const wrongs=shuffle(ANT.map(x=>x[1]).filter(x=>x!==a)).slice(0,3);
+        return {domain:'ELA', t:`Antonym of “${w}”?`, c:a, a:choiceSet(a,wrongs), tag:'vocab', lvl:5.0}; }
+      function genHomophone(){ const h=pick(HOMO); return {domain:'ELA', t:h.sent, c:h.c, a:choiceSet(h.c,h.w), tag:'homophones', lvl:h.lvl}; }
+      function genSV(){ const s=pick(SV_AGR); return {domain:'ELA', t:s.t, c:s.c, a:choiceSet(s.c,s.w), tag:'grammar', lvl:4.5}; }
+      function genComma(){ const s=pick(COMMA); return {domain:'ELA', t:s.t, c:s.c, a:choiceSet(s.c,s.w), tag:'punctuation', lvl:4.7}; }
+      function genContextClue(){ const blanks=[{sent:`She spoke in a ___ voice so she wouldn’t wake the baby.`, c:'soft', w:['loud','angry','rapid'], lvl:3.6},
+        {sent:`The desert is known for its ___ rainfall.`, c:'scarce', w:['plentiful','daily','stormy'], lvl:3.8},
+        {sent:`He was so ___ to start that he arrived early.`, c:'eager', w:['confused','tired','reluctant'], lvl:3.8}];
+        const b=pick(blanks); return {domain:'ELA', t:b.sent, c:b.c, a:choiceSet(b.c,b.w), tag:'context', lvl:b.lvl}; }
+
+      const MATH_GENS = [genG2_OA_2,genG2_OA_3,genG3_NBT,genFracEquiv,genAddLikeDen,genAreaPerim,genDecCompare,genPercentOf,genUnitRate,genIntAddSub,genOneStepEq,genTriangleAngle,genSlope,genPyth];
+      const ELA_GENS  = [genFromPassage,genSynonym,genAntonym,genHomophone,genSV,genComma,genContextClue];
+
+      // ---- BUILD A 120-QUESTION BANK ----
+      function buildBanks(grade){
+        const bank = [];
+        const gradeAnchor = grade ? Number(grade) : 5;
+        while(bank.length < BANK_SIZE){
+          const gen = Math.random()<0.5 ? pick(MATH_GENS) : pick(ELA_GENS);
+          const q = gen();
+          const keep = Math.abs(q.lvl - gradeAnchor) <= 2.2 || Math.random() < 0.18;
+          if(keep) bank.push(q);
+        }
+        return shuffle(bank);
+      }
+
+      // ---- STATE ----
+      let chosenGrade = null;
+      const askedIdx = new Set();
+      let bank = [];
+      let state = {
+        step:0, total:ADMIN_LEN,
+        est:4.5, conf:0.5,
+        mathCorrect:0, elaCorrect:0,
+        strengths:new Map(), needs:new Map()
+      };
+
+      // pick next q near current estimate, alternating domains
+      function nextIndex(){
+        const wantDomain = (state.step % 2 === 0) ? 'Math' : 'ELA';
+        let best = -1, bestScore = 1e9;
+        for(let i=0;i<bank.length;i++){
+          if(askedIdx.has(i)) continue;
+          const q = bank[i];
+          const domainPenalty = (q.domain===wantDomain)? 0 : 0.25;
+          const levelGap = Math.abs(q.lvl - state.est);
+          const score = levelGap + domainPenalty;
+          if(score < bestScore){ bestScore = score; best = i; }
+        }
+        return best;
+      }
+
+      // UI handles
+      const appEl = document.getElementById('app');
+      const reportEl = document.getElementById('report');
+      const prestartEl = document.getElementById('prestart');
+      const qText = document.getElementById('qtext');
+      const choicesEl = document.getElementById('choices');
+      const progressText = document.getElementById('progressText');
+      const progressFill = document.getElementById('progressFill');
+      const sectionTitle = document.getElementById('sectionTitle');
+      const sectionHint = document.getElementById('sectionHint');
+      const estLevelEl = document.getElementById('estLevel');
+      const confEl = document.getElementById('confidence');
+      const domainNowEl = document.getElementById('domainNow');
+      const strengthsEl = document.getElementById('strengths');
+      const needsEl = document.getElementById('needs');
+
+      function renderTags(){
+        function topTags(map, n=4){ return Array.from(map.entries()).sort((a,b)=>b[1]-a[1]).slice(0,n).map(x=>x[0]); }
+        const s = topTags(state.strengths,4).map(t=>`<span class="pill">${t}</span>`).join('') || '<span class="examMuted">—</span>';
+        const n = topTags(state.needs,4).map(t=>`<span class="pill">${t}</span>`).join('') || '<span class="examMuted">—</span>';
+        strengthsEl.innerHTML = s; needsEl.innerHTML = n;
+      }
+
+      function renderQ(){
+        const idx = nextIndex();
+        const q = bank[idx];
+        askedIdx.add(idx);
+
+        domainNowEl.textContent = q.domain;
+        progressText.textContent = (state.step+1) + ' / ' + state.total;
+        progressFill.style.width = (state.step / state.total * 100) + '%';
+
+        const numWithinDomain = [...askedIdx].map(i=>bank[i]).filter(x=>x.domain===q.domain).length;
+        sectionTitle.textContent = `${q.domain} — Question ${numWithinDomain}`;
+        sectionHint.textContent = q.domain==='Math' ? 'Grade-aligned skills. Try your best!' : 'Reading, language, and writing skills.';
+
+        qText.textContent = q.t;
+        choicesEl.innerHTML='';
+        shuffle(q.a.slice()).forEach(opt=>{
+          const b=document.createElement('button');
+          b.textContent=opt;
+          b.onclick=()=>answer(q,opt);
+          choicesEl.appendChild(b);
+        });
+
+        estLevelEl.textContent = state.est.toFixed(1);
+        confEl.textContent = Math.round(state.conf*100)+'%';
+        renderTags();
+      }
+
+      function answer(q,opt){
+        const correct = (opt===q.c);
+        if(correct){
+          if(q.domain==='Math') state.mathCorrect++; else state.elaCorrect++;
+          state.est = Math.min(MAX_GRADE, state.est + (q.lvl >= state.est ? 0.28 : 0.14));
+          state.conf = Math.min(1, state.conf + 0.04);
+          bump(state.strengths, q.tag, 1);
+        } else {
+          state.est = Math.max(MIN_GRADE, state.est - (q.lvl >= state.est ? 0.12 : 0.18));
+          state.conf = Math.max(0.2, state.conf - 0.03);
+          bump(state.needs, q.tag, 1);
+        }
+
+        state.step++;
+        if(state.step>=state.total){ finish(); } else { renderQ(); }
+      }
+
+      function chipsFromMap(map, n=6){
+        const arr = Array.from(map.entries()).sort((a,b)=>b[1]-a[1]).slice(0,n);
+        if(!arr.length) return '—';
+        return arr.map(([tag,_count])=>{
+          const std = TAG_TO_STD[tag] || '—';
+          return `<div class="pill">${tag}</div><div class="examMuted" style="margin:2px 0 8px">${std}</div>`;
+        }).join('');
+      }
+
+      function finish(){
+        progressFill.style.width = '100%';
+
+        // Estimate domain levels (20 total → ~10 Math + 10 ELA)
+        const mathLevel = Math.min(MAX_GRADE, Math.max(MIN_GRADE, (chosenGrade || 5) + (state.mathCorrect - 5)*0.25));
+        const elaLevel  = Math.min(MAX_GRADE, Math.max(MIN_GRADE, (chosenGrade || 5) + (state.elaCorrect  - 5)*0.25));
+
+        document.getElementById('mathLevel').textContent = mathLevel.toFixed(1);
+        document.getElementById('elaLevel').textContent  = elaLevel.toFixed(1);
+        document.getElementById('confOut').textContent   = Math.round(state.conf*100)+'%';
+
+        const exp = expectedForGrade(chosenGrade);
+        const mathExp = exp? exp.math : null;
+        const elaExp  = exp? exp.ela  : null;
+
+        document.getElementById('mathExpected').textContent = (mathExp!=null) ? mathExp.toFixed(1) : '—';
+        document.getElementById('elaExpected').textContent  = (elaExp!=null)  ? elaExp.toFixed(1)  : '—';
+
+        function gapText(current, expected){
+          if(expected==null) return 'Set a grade to see target';
+          const diff = +(current - expected).toFixed(1);
+          if(diff >= 0.3) return `Ahead (+${diff})`;
+          if(diff <= -0.3) return `Below (${diff})`;
+          return 'On track (±0.2)';
+        }
+        document.getElementById('mathGap').textContent = gapText(mathLevel, mathExp);
+        document.getElementById('elaGap').textContent  = gapText(elaLevel,  elaExp);
+        document.getElementById('gradeRef').textContent = chosenGrade ? `Grade ${chosenGrade}` :
