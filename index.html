@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Ripa Elevate — Free Diagnostic (Grades 2–8)</title>
+  <meta name="description" content="Adaptive Math & ELA diagnostic aligned to NYC/NYS expectations. Free, private, instant report.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="./styles.css" rel="stylesheet">
+</head>
+<body>
+  <div class="bg-gradient" aria-hidden="true"></div>
+  <canvas id="fx" aria-hidden="true"></canvas>
+
+  <header>
+    <div class="container">
+      <div class="row">
+        <div class="brand"><span class="orb"></span><span>Ripa Elevate Academy</span></div>
+        <nav>
+          <a href="#exam">Start</a>
+          <a href="#how">How it works</a>
+          <a href="#faq">FAQ</a>
+        </nav>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div class="container">
+        <h1 class="headline">The <span class="txt-grad">Instant Learning Scan</span> for Math & ELA</h1>
+        <p class="sub">A 20-question adaptive checkup (from a 120-item bank) that pinpoints level by skill and gives a simple action plan.</p>
+        <div class="btns">
+          <a class="btn primary" href="#exam">Start Free Diagnostic</a>
+          <a class="btn" href="#how">See How It Works</a>
+        </div>
+        <div class="micro">No signup. Works on laptop or iPad.</div>
+        <div class="accent-bar"></div>
+      </div>
+    </section>
+
+    <section id="how">
+      <div class="container reveal">
+        <div class="label">How it works</div>
+        <div class="title">Simple steps. Smart results.</div>
+        <div class="grid3">
+          <div class="card tilt">
+            <h3>Smart Start</h3>
+            <p>Pick a grade (or Auto). We route difficulty automatically.</p>
+          </div>
+          <div class="card tilt">
+            <h3>Adaptive Questions</h3>
+            <p>It gets harder or easier as the student answers.</p>
+          </div>
+          <div class="card tilt">
+            <h3>Instant Report</h3>
+            <p>See level, strengths, priorities, and next steps.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== EXAM ===== -->
+    <section id="exam">
+      <div class="container">
+        <!-- Pre-start -->
+        <div class="examCard" id="prestart">
+          <div class="row" style="align-items:flex-end">
+            <div>
+              <div class="examTitle">Set Up Your Diagnostic</div>
+              <p class="examMuted">Choose grade focus and begin. “Auto” adapts without a preset grade.</p>
+            </div>
+            <div class="btns" style="gap:10px;flex-wrap:wrap">
+              <label class="examMuted">Grade:
+                <select id="gradeSel" style="margin-left:6px">
+                  <option value="">Auto</option>
+                  <option>2</option><option>3</option><option>4</option>
+                  <option>5</option><option>6</option><option>7</option><option>8</option>
+                </select>
+              </label>
+              <button class="btn primary" type="button" id="beginBtn">Begin</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Live Exam -->
+        <div class="stage" id="app" style="display:none">
+          <!-- Left -->
+          <div class="examCard">
+            <div class="row">
+              <div>
+                <div class="examTitle" id="sectionTitle">Math — Question 1</div>
+                <p class="examMuted" id="sectionHint">We’ll adjust difficulty as you go.</p>
+              </div>
+              <div style="min-width:170px">
+                <div class="examMuted" id="progressText" style="text-align:center">1 / 20</div>
+                <div class="progBar" aria-label="Progress"><div class="progFill" id="progressFill"></div></div>
+              </div>
+            </div>
+            <h3 class="qtext" id="qtext">Loading…</h3>
+            <div class="choices" id="choices"></div>
+          </div>
+
+          <!-- Right -->
+          <div class="examCard">
+            <div class="examTitle">Live Indicators</div>
+            <p class="examMuted">These update as answers come in.</p>
+            <div class="kpis">
+              <div class="kpiBox"><div class="examMuted">Estimated Level</div><div class="num" id="estLevel">4.0</div></div>
+              <div class="kpiBox"><div class="examMuted">Confidence</div><div class="num" id="confidence">—</div></div>
+              <div class="kpiBox"><div class="examMuted">Domain</div><div class="num" id="domainNow">Math</div></div>
+            </div>
+            <div style="margin-top:12px">
+              <div class="examMuted">Strength signals</div><div id="strengths"></div>
+            </div>
+            <div style="margin-top:8px">
+              <div class="examMuted">Priority signals</div><div id="needs"></div>
+            </div>
+            <div class="btns" style="margin-top:14px;justify-content:flex-start">
+              <button class="btn" id="finishBtn" type="button">Finish now</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Report -->
+        <div class="examCard" id="report" style="display:none;margin-top:16px">
+          <div class="row">
+            <div class="examTitle">Instant Report</div>
+            <div class="btns">
+              <button class="btn" onclick="window.print()">Download PDF</button>
+              <a class="btn" href="#exam" onclick="location.reload()">Restart</a>
+              <button class="btn" id="sendToTutorBtn" type="button">Send Results to Tutor</button>
+            </div>
+          </div>
+          <p class="examMuted">Levels reflect NYC/NYS grade expectations. Action steps focus practice on the highest-impact skills.</p>
+
+          <div class="kpis">
+            <div class="kpiBox"><div class="examMuted">Math level (current)</div><div class="num" id="mathLevel">—</div></div>
+            <div class="kpiBox"><div class="examMuted">ELA level (current)</div><div class="num" id="elaLevel">—</div></div>
+            <div class="kpiBox"><div class="examMuted">Overall confidence</div><div class="num" id="confOut">—</div></div>
+          </div>
+
+          <div class="kpis" style="margin-top:10px">
+            <div class="kpiBox">
+              <div class="examMuted">Math expected (NYC/NYS)</div>
+              <div class="num" id="mathExpected">—</div>
+              <div class="examMuted" id="mathGap" style="margin-top:6px">—</div>
+            </div>
+            <div class="kpiBox">
+              <div class="examMuted">ELA expected (NYC/NYS)</div>
+              <div class="num" id="elaExpected">—</div>
+              <div class="examMuted" id="elaGap" style="margin-top:6px">—</div>
+            </div>
+            <div class="kpiBox"><div class="examMuted">Grade reference</div><div class="num" id="gradeRef">Auto</div></div>
+          </div>
+
+          <div style="margin-top:12px">
+            <div class="examMuted">Strengths</div><div id="strengthList"></div>
+          </div>
+          <div style="margin-top:8px">
+            <div class="examMuted">Priorities</div><div id="needList"></div>
+          </div>
+
+          <div style="margin-top:12px">
+            <label class="examMuted" style="display:flex;align-items:center;gap:8px">
+              <input type="checkbox" id="stdToggle"> Show standards families
+            </label>
+            <div id="stdDetails" style="display:none; margin-top:8px" class="examMuted"></div>
+          </div>
+
+          <div style="margin-top:12px">
+            <div class="examMuted">Action plan</div>
+            <ul style="margin-top:6px">
+              <li>2-week: 10–15 mins/day on priority skills using targeted practice.</li>
+              <li>4-week: Reassess with a 10-minute mini-check and adjust level.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="faq">
+      <div class="container reveal">
+        <div class="title">Mini-FAQ</div>
+        <div class="faq">
+          <div class="q"><strong>What grades?</strong><span class="micro">Grades 2–8 (demo).</span></div>
+          <div class="q"><strong>How long?</strong><span class="micro">20 adaptive questions (from a 120-item bank).</span></div>
+          <div class="q"><strong>Privacy?</strong><span class="micro">Runs in the browser. Email to tutor is optional.</span></div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer><div class="container">© <span id="year"></span> Ripa Elevate Academy · Private by design</div></footer>
+
+  <!-- Optional: Netlify Forms (hidden form for notifications) -->
+  <form name="diagnostic-results" method="POST" data-netlify="true" netlify-honeypot="bot-field" style="display:none;">
+    <input type="hidden" name="form-name" value="diagnostic-results">
+    <p style="display:none;"><label>Don’t fill this out: <input name="bot-field"/></label></p>
+    <input type="hidden" name="student_name" id="nf_student_name" />
+    <input type="hidden" name="grade_selected" id="nf_grade" />
+    <input type="hidden" name="timestamp" id="nf_ts" />
+    <input type="hidden" name="math_level" id="nf_math" />
+    <input type="hidden" name="ela_level" id="nf_ela" />
+    <input type="hidden" name="confidence" id="nf_conf" />
+    <input type="hidden" name="strengths" id="nf_strengths" />
+    <input type="hidden" name="needs" id="nf_needs" />
+    <textarea name="raw_json" id="nf_json"></textarea>
+  </form>
+
+  <!-- Scripts -->
+  <script src="./bank.js"></script>
+  <script src="./app.js"></script>
+</body>
+</html>
