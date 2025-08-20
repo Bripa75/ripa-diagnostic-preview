@@ -1,6 +1,6 @@
-/* app.js — adaptive runtime — v1.1 (grade cap +2 with hard limit) */
+/* app.js — adaptive runtime (with grade ceiling & Formspree email) */
 
-/* ===== background particles + small UI polish ===== */
+/* ===== background particles + tiny UI polish ===== */
 (() => {
   const c = document.getElementById('fx'); if(!c) return;
   const ctx = c.getContext('2d'); let w,h, parts;
@@ -12,7 +12,8 @@
     requestAnimationFrame(step);
   }
   addEventListener('resize', resize); resize(); step();
-  const y = document.getElementById('year'); if (y) y.textContent = new Date().getFullYear();
+  document.getElementById('year').textContent = new Date().getFullYear();
+
   document.querySelectorAll('.tilt').forEach(el=>{
     el.addEventListener('mousemove',e=>{const r=el.getBoundingClientRect();const x=(e.clientX-r.left)/r.width-.5;const y=(e.clientY-r.top)/r.height-.5;el.style.transform=`rotateX(${(-y*6).toFixed(2)}deg) rotateY(${(x*6).toFixed(2)}deg)`;});
     el.addEventListener('mouseleave',()=>el.style.transform='');
@@ -23,34 +24,27 @@
 (() => {
   const { MATH_GENS, ELA_GENS, TAG_TO_STD, utils } = window.BANK;
 
-  // ---- Config ----
-  const BANK_SIZE    = 120;  // size of candidate pool (synthesized)
-  const ADMIN_LENGTH = 20;   // questions actually administered
+  // Public-ish so submit function can read
+  window.ADMIN_LENGTH = 20;
+  const BANK_SIZE = 120;
 
-  // NEW: grade-capping helpers
-  const MAX_PLUS2_PER_DOMAIN = 2;                // at most 2 questions that are exactly grade+2
-  const gradeOf = (q) => Math.round(q.lvl || 4); // convert q.lvl (e.g., 4.6) → 5
-
-  // ---- Elements ----
+  // DOM
   const beginBtn = document.getElementById('beginBtn');
   const gradeSel = document.getElementById('gradeSel');
   const app = document.getElementById('app');
   const prestart = document.getElementById('prestart');
   const report = document.getElementById('report');
-
   const sectionTitle = document.getElementById('sectionTitle');
   const sectionHint  = document.getElementById('sectionHint');
   const qtext = document.getElementById('qtext');
   const choicesEl = document.getElementById('choices');
   const progressText = document.getElementById('progressText');
   const progressFill = document.getElementById('progressFill');
-
   const domainNow = document.getElementById('domainNow');
   const estLevel  = document.getElementById('estLevel');
   const confidence = document.getElementById('confidence');
   const strengthsEl = document.getElementById('strengths');
   const needsEl = document.getElementById('needs');
-
   const mathLevelEl = document.getElementById('mathLevel');
   const elaLevelEl  = document.getElementById('elaLevel');
   const confOutEl   = document.getElementById('confOut');
@@ -66,72 +60,48 @@
   const finishBtn = document.getElementById('finishBtn');
   const sendBtn = document.getElementById('sendToTutorBtn');
 
-  // ---- State ----
-  let chosenGrade = null;
-  let bankM = [], bankE = [], runSeq = [], step = 0;
-  let est = 4.0, conf = 0.5, domain = 'Math';
+  // State
+  window.chosenGrade = null;        // export for email payload
+  window.runSeq = [];               // export for email payload (answers)
+  let bankM=[], bankE=[], step=0;
+  let est = 4.0, conf = 0.5, domain='Math';
   let correctM = 0, correctE = 0;
   const strengths = new Map(), needs = new Map();
 
-  // Helper that selects items with your desired distribution & caps
-  function selectWithCaps(pool, target, grade){
-    if (!grade) {
-      // Auto mode: just randomize (legacy behavior)
-      return utils.shuffle(pool).slice(0, target);
-    }
-
-    const cap = Number(grade) + 2;
-
-    // Filter anything above cap
-    const filtered = pool.filter(q => gradeOf(q) <= cap);
-
-    // Buckets
-    const atG   = utils.shuffle(filtered.filter(q => gradeOf(q) === grade));
-    const atG1  = utils.shuffle(filtered.filter(q => gradeOf(q) === grade + 1));
-    const below = utils.shuffle(filtered.filter(q => gradeOf(q) <  grade));
-    const atG2  = utils.shuffle(filtered.filter(q => gradeOf(q) === grade + 2));
-
-    // Desired proportions (approximate)
-    const wantG   = Math.round(target * 0.55);
-    const wantG1  = Math.round(target * 0.30);
-    const wantBelow = Math.max(0, target - wantG - wantG1 - Math.min(MAX_PLUS2_PER_DOMAIN, target));
-
-    const out = [];
-
-    const take = (src, n) => { while (out.length < target && src.length && n-- > 0) out.push(src.pop()); };
-
-    take(atG,   wantG);
-    take(atG1,  wantG1);
-    take(below, wantBelow);
-
-    // Fill remaining with leftover (non +2) first
-    const leftovers = [...atG, ...atG1, ...below];
-    while (out.length < target && leftovers.length) out.push(leftovers.pop());
-
-    // Finally, add up to 2 items from grade+2
-    const plus2Allowed = Math.min(MAX_PLUS2_PER_DOMAIN, target - out.length);
-    for (let i=0; i<plus2Allowed && atG2.length && out.length < target; i++) {
-      out.push(atG2.pop());
-    }
-
-    // Ensure target length
-    return out.slice(0, target);
+  // Grade ceiling logic (max +2)
+  function allowedMaxLevel(grade){
+    if(!grade) return 8.0;         // Auto: no ceiling
+    return Math.min(8, Number(grade) + 2);
   }
 
-  // Build a synthetic bank and then select the administered sequence
+  // Filter a generated item by level ceiling
+  function isAllowed(item, grade){
+    const ceil = allowedMaxLevel(grade);
+    return item.lvl <= ceil;
+  }
+
+  // Build pools then select for administration
   function buildBank(){
     const needM = Math.ceil(BANK_SIZE/2), needE = BANK_SIZE - needM;
-    bankM = []; while(bankM.length < needM) bankM.push(utils.pick(MATH_GENS)());
-    bankE = []; while(bankE.length < needE) bankE.push(utils.pick(ELA_GENS)());
+    const gg = window.chosenGrade ? Number(window.chosenGrade) : null;
 
-    const mTarget = Math.ceil(ADMIN_LENGTH/2);
-    const eTarget = ADMIN_LENGTH - mTarget;
+    bankM = [];
+    while(bankM.length < needM){
+      const q = utils.pick(MATH_GENS)();
+      if(isAllowed(q, gg)) bankM.push(q);
+    }
 
-    const selM = selectWithCaps(bankM, mTarget, chosenGrade);
-    const selE = selectWithCaps(bankE, eTarget, chosenGrade);
+    bankE = [];
+    while(bankE.length < needE){
+      const q = utils.pick(ELA_GENS)();
+      // ELA difficulty is fairly tight (levels 4–5.2), still apply cap just in case
+      if(isAllowed(q, gg)) bankE.push(q);
+    }
 
-    // Keep your simple block order: math then ELA
-    runSeq = selM.concat(selE);
+    const mAdmin = Math.ceil(window.ADMIN_LENGTH/2), eAdmin = window.ADMIN_LENGTH - mAdmin;
+    const selM = utils.shuffle(bankM).slice(0,mAdmin);
+    const selE = utils.shuffle(bankE).slice(0,eAdmin);
+    window.runSeq = selM.concat(selE); // math first, then ELA block
   }
 
   function expectedForGrade(g){
@@ -139,7 +109,6 @@
     const gg = Math.max(2, Math.min(8, Number(g)));
     return {math: gg*1.0, ela: gg*1.0};
   }
-
   function tagTop(map, n){ return Array.from(map.entries()).sort((a,b)=>b[1]-a[1]).slice(0,n).map(x=>x[0]); }
 
   function renderHUD(){
@@ -147,18 +116,18 @@
     estLevel.textContent = est.toFixed(1);
     confidence.textContent = Math.round(conf*100)+'%';
     strengthsEl.innerHTML = tagTop(strengths,4).map(t=>`<span class="pill">${t}</span>`).join('') || '<span class="examMuted">—</span>';
-    needsEl.innerHTML = tagTop(needs,4).map(t=>`<span class="pill">${t}</span>`).join('') || '<span class="examMuted">—</span>';
+    needsEl.innerHTML      = tagTop(needs,4).map(t=>`<span class="pill">${t}</span>`).join('') || '<span class="examMuted">—</span>';
   }
 
   function renderQ(){
-    const total = runSeq.length;
+    const total = window.runSeq.length;
     progressText.textContent = `${step+1} / ${total}`;
     progressFill.style.width = (step/total*100)+'%';
 
-    const q = runSeq[step];
-    domain = (step < Math.ceil(ADMIN_LENGTH/2)) ? 'Math' : 'ELA';
-    sectionTitle.textContent = `${domain} — Question ${domain==='Math' ? (step+1) : (step - Math.ceil(ADMIN_LENGTH/2) + 1)}`;
-    sectionHint.textContent  = domain==='Math' ? 'Grade-aligned skills. Try your best!' : 'Reading, language, and writing skills.';
+    const q = window.runSeq[step];
+    domain = (step < Math.ceil(window.ADMIN_LENGTH/2)) ? 'Math' : 'ELA';
+    sectionTitle.textContent = `${domain} — Question ${domain==='Math' ? (step+1) : (step - Math.ceil(window.ADMIN_LENGTH/2) + 1)}`;
+    sectionHint.textContent  = domain==='Math' ? 'Grade-aligned skills. Try your best!' : 'Reading and language skills.';
 
     qtext.textContent = q.t;
     choicesEl.innerHTML = '';
@@ -172,20 +141,23 @@
   }
 
   function submitAnswer(q, opt){
+    // record selection for email/report
+    q.userAnswer = opt;
+
     const isCorrect = (opt===q.c);
     if(isCorrect){
       domain==='Math' ? correctM++ : correctE++;
       est = Math.min(8, est + (q.lvl>=est ? 0.20 : 0.10));
       conf = Math.min(1, conf + 0.03);
       strengths.set(q.tag, (strengths.get(q.tag)||0) + 1);
-    } else {
+    }else{
       est = Math.max(2, est - 0.08);
       conf = Math.max(0.2, conf - 0.02);
       needs.set(q.tag, (needs.get(q.tag)||0) + 1);
     }
 
     step++;
-    if(step>=runSeq.length){ finish(); } else { renderQ(); }
+    if(step>=window.runSeq.length){ finish(); } else { renderQ(); }
   }
 
   function gapText(cur, exp){
@@ -208,22 +180,21 @@
   function finish(){
     progressFill.style.width = '100%';
 
-    // crude level estimates from correct counts (tuned for demo)
-    const mathLevel = Math.min(8, Math.max(2, (chosenGrade||5) + (correctM - (ADMIN_LENGTH/2)/2)*0.2));
-    const elaLevel  = Math.min(8, Math.max(2, (chosenGrade||5) + (correctE - (ADMIN_LENGTH/2)/2)*0.2));
+    const mathLevel = Math.min(8, Math.max(2, (window.chosenGrade||5) + (correctM - (window.ADMIN_LENGTH/2)/2)*0.2));
+    const elaLevel  = Math.min(8, Math.max(2, (window.chosenGrade||5) + (correctE - (window.ADMIN_LENGTH/2)/2)*0.2));
 
     mathLevelEl.textContent = mathLevel.toFixed(1);
     elaLevelEl.textContent  = elaLevel.toFixed(1);
     confOutEl.textContent   = Math.round(conf*100)+'%';
 
-    const exp = expectedForGrade(chosenGrade);
+    const exp = expectedForGrade(window.chosenGrade);
     const mExp = exp ? exp.math : null;
     const eExp = exp ? exp.ela  : null;
     mathExpEl.textContent = mExp!==null ? mExp.toFixed(1) : '—';
     elaExpEl.textContent  = eExp!==null  ? eExp.toFixed(1)  : '—';
     mathGapEl.textContent = gapText(parseFloat(mathLevelEl.textContent), mExp);
     elaGapEl.textContent  = gapText(parseFloat(elaLevelEl.textContent),  eExp);
-    gradeRefEl.textContent = chosenGrade ? `Grade ${chosenGrade}` : 'Auto';
+    gradeRefEl.textContent = window.chosenGrade ? `Grade ${window.chosenGrade}` : 'Auto';
 
     strengthList.innerHTML = tagTop(strengths,6).map(t=>`<span class="pill">${t}</span>`).join('') || '—';
     needList.innerHTML      = tagTop(needs,6).map(t=>`<span class="pill">${t}</span>`).join('') || '—';
@@ -235,44 +206,54 @@
     app.style.display = 'none';
     report.style.display = 'block';
     report.scrollIntoView({behavior:'smooth'});
+
+    // Auto-email after finishing (optional, keep if you want auto)
+    // submitToFormspree({auto:true});
   }
 
-  // Optional: Netlify Forms “Send results to tutor”
-  function submitToNetlify(){
-    const form = document.forms['diagnostic-results'];
-    if(!form){ alert('Results form not found.'); return; }
+  // ===== Formspree email =====
+  function submitToFormspree({auto=false} = {}){
+    const form = document.getElementById('resultsForm');
+    if(!form){ alert('Form not found.'); return; }
+
     const payload = {
-      student_name: 'Student',
-      grade_selected: chosenGrade ?? 'Auto',
-      timestamp: new Date().toISOString(),
+      student_name: (document.getElementById('studentNameInput')?.value || 'Student'),
+      parent_email: (document.getElementById('parentEmailInput')?.value || ''),
+      grade_selected: window.chosenGrade ?? 'Auto',
       math_level: document.getElementById('mathLevel').textContent,
       ela_level:  document.getElementById('elaLevel').textContent,
       confidence: document.getElementById('confOut').textContent,
-      strengths: strengthList.innerText,
-      needs: needList.innerText
+      strengths:  document.getElementById('strengthList').innerText,
+      needs:       document.getElementById('needList').innerText,
+      answers: window.runSeq.map((q,i)=>({
+        qnum:i+1,
+        domain: (i < Math.ceil(window.ADMIN_LENGTH/2)) ? 'Math':'ELA',
+        question:q.t,
+        chosen:q.userAnswer ?? '—',
+        correct:q.c,
+        isCorrect:(q.userAnswer===q.c)
+      }))
     };
-    // populate hidden fields
-    form.querySelector('#nf_student_name').value = payload.student_name;
-    form.querySelector('#nf_grade').value = payload.grade_selected;
-    form.querySelector('#nf_ts').value = payload.timestamp;
-    form.querySelector('#nf_math').value = payload.math_level;
-    form.querySelector('#nf_ela').value = payload.ela_level;
-    form.querySelector('#nf_conf').value = payload.confidence;
-    form.querySelector('#nf_strengths').value = payload.strengths;
-    form.querySelector('#nf_needs').value = payload.needs;
-    form.querySelector('#nf_json').value = JSON.stringify(payload, null, 2);
 
-    const data = new FormData(form);
-    fetch('/', { method:'POST', body:data })
-      .then(()=> alert('Results sent. You’ll receive a Netlify notification email.'))
-      .catch(()=> alert('Could not send results (Netlify Forms must be enabled on the deploy).'));
+    form.querySelector('#fs_student_name').value = payload.student_name;
+    form.querySelector('#fs_parent_email').value = payload.parent_email;
+    form.querySelector('#fs_grade').value        = payload.grade_selected;
+    form.querySelector('#fs_math').value         = payload.math_level;
+    form.querySelector('#fs_ela').value          = payload.ela_level;
+    form.querySelector('#fs_confidence').value   = payload.confidence;
+    form.querySelector('#fs_strengths').value    = payload.strengths;
+    form.querySelector('#fs_needs').value        = payload.needs;
+    form.querySelector('#fs_answers_json').value = JSON.stringify(payload, null, 2);
+
+    form.submit();
+    if(!auto) alert('Results submitted. Check your email.');
   }
 
-  // Begin / Finish handlers
+  // Handlers
   beginBtn.onclick = ()=>{
-    chosenGrade = gradeSel.value ? Number(gradeSel.value) : null;
+    window.chosenGrade = gradeSel.value ? Number(gradeSel.value) : null;
     buildBank();
-    step=0; est = chosenGrade ? chosenGrade : 4.0; conf=0.5; correctM=0; correctE=0;
+    step=0; est = window.chosenGrade ? window.chosenGrade : 4.0; conf=0.5; correctM=0; correctE=0;
     strengths.clear(); needs.clear();
     prestart.style.display='none';
     app.style.display='grid';
@@ -280,6 +261,6 @@
     document.getElementById('exam').scrollIntoView({behavior:'smooth'});
   };
   finishBtn.onclick = finish;
-  if(sendBtn) sendBtn.onclick = submitToNetlify;
+  if(sendBtn) sendBtn.onclick = ()=> submitToFormspree();
 })();
 
