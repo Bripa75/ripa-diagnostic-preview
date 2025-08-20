@@ -1,4 +1,4 @@
-/* app.js — adaptive runtime — v1.0 */
+/* app.js — adaptive runtime — v1.1 (grade cap +2 with hard limit) */
 
 /* ===== background particles + small UI polish ===== */
 (() => {
@@ -12,7 +12,7 @@
     requestAnimationFrame(step);
   }
   addEventListener('resize', resize); resize(); step();
-  document.getElementById('year').textContent = new Date().getFullYear();
+  const y = document.getElementById('year'); if (y) y.textContent = new Date().getFullYear();
   document.querySelectorAll('.tilt').forEach(el=>{
     el.addEventListener('mousemove',e=>{const r=el.getBoundingClientRect();const x=(e.clientX-r.left)/r.width-.5;const y=(e.clientY-r.top)/r.height-.5;el.style.transform=`rotateX(${(-y*6).toFixed(2)}deg) rotateY(${(x*6).toFixed(2)}deg)`;});
     el.addEventListener('mouseleave',()=>el.style.transform='');
@@ -23,11 +23,15 @@
 (() => {
   const { MATH_GENS, ELA_GENS, TAG_TO_STD, utils } = window.BANK;
 
-  // Configuration
-  const BANK_SIZE = 120;     // total items available (we synthesize by sampling gens)
+  // ---- Config ----
+  const BANK_SIZE    = 120;  // size of candidate pool (synthesized)
   const ADMIN_LENGTH = 20;   // questions actually administered
 
-  // Elements
+  // NEW: grade-capping helpers
+  const MAX_PLUS2_PER_DOMAIN = 2;                // at most 2 questions that are exactly grade+2
+  const gradeOf = (q) => Math.round(q.lvl || 4); // convert q.lvl (e.g., 4.6) → 5
+
+  // ---- Elements ----
   const beginBtn = document.getElementById('beginBtn');
   const gradeSel = document.getElementById('gradeSel');
   const app = document.getElementById('app');
@@ -62,23 +66,72 @@
   const finishBtn = document.getElementById('finishBtn');
   const sendBtn = document.getElementById('sendToTutorBtn');
 
-  // State
+  // ---- State ----
   let chosenGrade = null;
   let bankM = [], bankE = [], runSeq = [], step = 0;
   let est = 4.0, conf = 0.5, domain = 'Math';
   let correctM = 0, correctE = 0;
   const strengths = new Map(), needs = new Map();
 
-  // Build a synthetic bank of BANK_SIZE items (half math, half ELA)
+  // Helper that selects items with your desired distribution & caps
+  function selectWithCaps(pool, target, grade){
+    if (!grade) {
+      // Auto mode: just randomize (legacy behavior)
+      return utils.shuffle(pool).slice(0, target);
+    }
+
+    const cap = Number(grade) + 2;
+
+    // Filter anything above cap
+    const filtered = pool.filter(q => gradeOf(q) <= cap);
+
+    // Buckets
+    const atG   = utils.shuffle(filtered.filter(q => gradeOf(q) === grade));
+    const atG1  = utils.shuffle(filtered.filter(q => gradeOf(q) === grade + 1));
+    const below = utils.shuffle(filtered.filter(q => gradeOf(q) <  grade));
+    const atG2  = utils.shuffle(filtered.filter(q => gradeOf(q) === grade + 2));
+
+    // Desired proportions (approximate)
+    const wantG   = Math.round(target * 0.55);
+    const wantG1  = Math.round(target * 0.30);
+    const wantBelow = Math.max(0, target - wantG - wantG1 - Math.min(MAX_PLUS2_PER_DOMAIN, target));
+
+    const out = [];
+
+    const take = (src, n) => { while (out.length < target && src.length && n-- > 0) out.push(src.pop()); };
+
+    take(atG,   wantG);
+    take(atG1,  wantG1);
+    take(below, wantBelow);
+
+    // Fill remaining with leftover (non +2) first
+    const leftovers = [...atG, ...atG1, ...below];
+    while (out.length < target && leftovers.length) out.push(leftovers.pop());
+
+    // Finally, add up to 2 items from grade+2
+    const plus2Allowed = Math.min(MAX_PLUS2_PER_DOMAIN, target - out.length);
+    for (let i=0; i<plus2Allowed && atG2.length && out.length < target; i++) {
+      out.push(atG2.pop());
+    }
+
+    // Ensure target length
+    return out.slice(0, target);
+  }
+
+  // Build a synthetic bank and then select the administered sequence
   function buildBank(){
     const needM = Math.ceil(BANK_SIZE/2), needE = BANK_SIZE - needM;
-    bankM = []; while(bankM.length<needM) bankM.push(utils.pick(MATH_GENS)());
-    bankE = []; while(bankE.length<needE) bankE.push(utils.pick(ELA_GENS)());
-    // interleave for runtime selection: first half math, second half ELA
-    const mAdmin = Math.ceil(ADMIN_LENGTH/2), eAdmin = ADMIN_LENGTH - mAdmin;
-    const selM = utils.shuffle(bankM).slice(0, mAdmin);
-    const selE = utils.shuffle(bankE).slice(0, eAdmin);
-    runSeq = selM.concat(selE); // simple 1-block math then ELA
+    bankM = []; while(bankM.length < needM) bankM.push(utils.pick(MATH_GENS)());
+    bankE = []; while(bankE.length < needE) bankE.push(utils.pick(ELA_GENS)());
+
+    const mTarget = Math.ceil(ADMIN_LENGTH/2);
+    const eTarget = ADMIN_LENGTH - mTarget;
+
+    const selM = selectWithCaps(bankM, mTarget, chosenGrade);
+    const selE = selectWithCaps(bankE, eTarget, chosenGrade);
+
+    // Keep your simple block order: math then ELA
+    runSeq = selM.concat(selE);
   }
 
   function expectedForGrade(g){
@@ -120,7 +173,6 @@
 
   function submitAnswer(q, opt){
     const isCorrect = (opt===q.c);
-    // dynamic level/conf
     if(isCorrect){
       domain==='Math' ? correctM++ : correctE++;
       est = Math.min(8, est + (q.lvl>=est ? 0.20 : 0.10));
@@ -210,7 +262,6 @@
     form.querySelector('#nf_needs').value = payload.needs;
     form.querySelector('#nf_json').value = JSON.stringify(payload, null, 2);
 
-    // classic Netlify form POST
     const data = new FormData(form);
     fetch('/', { method:'POST', body:data })
       .then(()=> alert('Results sent. You’ll receive a Netlify notification email.'))
@@ -231,3 +282,4 @@
   finishBtn.onclick = finish;
   if(sendBtn) sendBtn.onclick = submitToNetlify;
 })();
+
