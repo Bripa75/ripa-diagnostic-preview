@@ -1,183 +1,183 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8"/>
+  <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Ripa Elevate — Free Diagnostic</title>
-  <meta name="description" content="Adaptive Math & ELA diagnostic aligned to NYC/NYS standards.">
+  <meta name="description" content="Adaptive diagnostic for Math & ELA (Grades 2–8). Free and instant.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="./styles.css">
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    /* small helpers in case styles.css is minimal */
+    body{margin:0;background:#070a12;color:#eef2fb;font-family:Poppins,system-ui,Segoe UI,Roboto,Arial,sans-serif}
+    .container{width:min(1100px,92%);margin:0 auto}
+    .card{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:16px;padding:16px}
+    .row{display:flex;gap:12px;align-items:center;justify-content:space-between}
+    .btn{display:inline-flex;align-items:center;gap:8px;padding:12px 16px;border-radius:12px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);color:#eef2fb;font-weight:600;cursor:pointer}
+    .btn.primary{background:linear-gradient(135deg, rgba(103,232,249,.18), rgba(167,139,250,.18))}
+    .pill{display:inline-block;padding:6px 10px;border:1px solid rgba(255,255,255,.18);border-radius:999px;margin:4px 6px 0 0}
+    .muted{color:#b7c0d9;font-size:14px}
+    .grid{display:grid;grid-template-columns:1.1fr .9fr;gap:16px}
+    .choices{display:grid;gap:10px}
+    .choices button{padding:12px 14px;border-radius:12px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.05);color:#eef2fb;text-align:left;font-weight:600;cursor:pointer}
+    .prog{height:10px;background:rgba(255,255,255,.12);border-radius:999px;overflow:hidden}
+    .fill{height:100%;width:0;background:linear-gradient(90deg,#67e8f9,#a78bfa);transition:width .35s}
+    @media(max-width:900px){.grid{grid-template-columns:1fr}}
+  </style>
 </head>
 <body>
-  <div class="bg-gradient" aria-hidden="true"></div>
   <canvas id="fx" aria-hidden="true"></canvas>
 
-  <header>
-    <div class="container">
-      <div class="row">
-        <div class="brand"><span class="orb"></span><span>Ripa Elevate Academy</span></div>
-        <nav>
-          <a href="#start">Start</a>
-          <a href="#how">How it works</a>
-          <a href="#faq">FAQ</a>
-        </nav>
-      </div>
+  <header class="container" style="padding:14px 0;border-bottom:1px solid rgba(255,255,255,.12)">
+    <div class="row">
+      <div style="font-weight:700"><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:linear-gradient(135deg,#67e8f9,#a78bfa);margin-right:8px"></span>Ripa Elevate Academy</div>
+      <nav class="muted">
+        <a href="#exam" class="btn">Start</a>
+        <a href="#faq" class="btn">FAQ</a>
+      </nav>
     </div>
   </header>
 
-  <main id="start">
-    <section class="hero">
-      <div class="container">
-        <h1 class="headline">The <span class="txt-grad">Instant Learning Scan</span></h1>
-        <p class="sub">20 adaptive questions from a 120-item bank. Pinpoints level, strengths, priorities, and gives a simple plan.</p>
-        <div class="accent-bar"></div>
-      </div>
+  <main>
+    <section class="container" style="padding:40px 0 10px;text-align:center">
+      <h1 style="margin:0 0 8px;font-size:clamp(28px,5vw,48px);font-weight:700">
+        The <span style="background:linear-gradient(90deg,#67e8f9,#a78bfa);-webkit-background-clip:text;background-clip:text;color:transparent">Instant Learning Scan</span> for Math & ELA
+      </h1>
+      <p class="muted" style="margin:0">Adaptive • Grades 2–8 • Clear plan in minutes</p>
     </section>
 
-    <section id="how">
-      <div class="container">
-        <div class="label">How it works</div>
-        <div class="title">Simple steps. Smart results.</div>
-        <div class="grid3">
-          <div class="card tilt"><h3>Smart Start</h3><p>Choose a grade (or Auto). We cap difficulty at +2 grades.</p></div>
-          <div class="card tilt"><h3>Adaptive Questions</h3><p>Gets easier/harder as they answer. Math then ELA.</p></div>
-          <div class="card tilt"><h3>Instant Report</h3><p>Shows estimate, confidence, strengths, priorities, and action steps.</p></div>
-        </div>
-      </div>
-    </section>
-
-    <!-- Prestart -->
-    <section>
-      <div class="container">
-        <div class="examCard" id="prestart">
-          <div class="row" style="align-items:center;gap:12px;flex-wrap:wrap">
-            <div class="title" style="margin:0">Set Up Your Diagnostic</div>
-            <label class="examMuted">Grade:
+    <!-- Pre-start panel -->
+    <section id="exam" class="container">
+      <div id="prestart" class="card" style="margin-bottom:16px">
+        <div class="row" style="align-items:flex-end;flex-wrap:wrap;gap:14px">
+          <div>
+            <div style="font-weight:700">Set Up Your Diagnostic</div>
+            <p class="muted" style="margin:6px 0 0">Pick a grade (or Auto), enter a name (optional), and begin.</p>
+          </div>
+          <div class="row" style="gap:8px;flex-wrap:wrap">
+            <label class="muted">Grade:
               <select id="gradeSel" style="margin-left:6px">
                 <option value="">Auto</option>
                 <option>2</option><option>3</option><option>4</option>
                 <option>5</option><option>6</option><option>7</option><option>8</option>
               </select>
             </label>
-            <button class="btn primary" id="beginBtn" type="button">Begin</button>
+            <label class="muted">Student name:
+              <input id="studentName" placeholder="Optional" style="margin-left:6px;padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.06);color:#eef2fb">
+            </label>
+            <label class="muted">Parent email (for results):
+              <input id="parentEmail" placeholder="Optional" style="margin-left:6px;padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.06);color:#eef2fb">
+            </label>
+            <button id="beginBtn" class="btn primary">Begin</button>
           </div>
-          <p class="examMuted" style="margin-top:10px">Tip: If you pick Grade 2, the hardest item shown will be around Grade 4.</p>
         </div>
       </div>
-    </section>
 
-    <!-- Live Exam -->
-    <section id="exam">
-      <div class="container stage" id="app" style="display:none">
-        <!-- Left: Q/A -->
-        <div class="examCard">
+      <!-- Live exam -->
+      <div id="app" class="grid" style="display:none">
+        <div class="card">
           <div class="row">
             <div>
-              <div class="examTitle" id="sectionTitle">Math — Question 1</div>
-              <p class="examMuted" id="sectionHint">We’ll adjust difficulty as you go.</p>
+              <div id="sectionTitle" style="font-weight:700">Math — Question 1</div>
+              <div id="sectionHint" class="muted">We’ll adjust difficulty as you go. Try your best!</div>
             </div>
             <div style="min-width:170px">
-              <div class="examMuted" id="progressText" style="text-align:center">1 / 20</div>
-              <div class="progBar"><div class="progFill" id="progressFill"></div></div>
+              <div id="progressText" class="muted" style="text-align:center">1 / 20</div>
+              <div class="prog"><div id="progressFill" class="fill"></div></div>
             </div>
           </div>
-
-          <h3 class="qtext" id="qtext">Loading…</h3>
-          <div class="choices" id="choices"></div>
+          <h3 id="qtext" style="margin:14px 0 10px">Loading…</h3>
+          <div id="choices" class="choices"></div>
         </div>
 
-        <!-- Right: HUD -->
-        <div class="examCard">
-          <div class="examTitle">Live Indicators</div>
-          <p class="examMuted">Update after each answer.</p>
-          <div class="kpis">
-            <div class="kpiBox"><div class="examMuted">Estimated Level</div><div class="num" id="estLevel">—</div></div>
-            <div class="kpiBox"><div class="examMuted">Confidence</div><div class="num" id="confidence">—</div></div>
-            <div class="kpiBox"><div class="examMuted">Domain</div><div class="num" id="domainNow">Math</div></div>
+        <div class="card">
+          <div style="font-weight:700">Live Indicators</div>
+          <p class="muted">These update as answers come in.</p>
+          <div class="row" style="gap:10px;flex-wrap:wrap">
+            <div class="card" style="flex:1;min-width:150px">
+              <div class="muted">Estimated Level</div>
+              <div id="estLevel" style="font-weight:700;font-size:22px">4.0</div>
+            </div>
+            <div class="card" style="flex:1;min-width:150px">
+              <div class="muted">Confidence</div>
+              <div id="confidence" style="font-weight:700;font-size:22px">—</div>
+            </div>
+            <div class="card" style="flex:1;min-width:150px">
+              <div class="muted">Domain</div>
+              <div id="domainNow" style="font-weight:700;font-size:22px">Math</div>
+            </div>
           </div>
-          <div style="margin-top:12px">
-            <div class="examMuted">Strength signals</div><div id="strengths"></div>
-          </div>
-          <div style="margin-top:8px">
-            <div class="examMuted">Priority signals</div><div id="needs"></div>
-          </div>
-          <div class="btns" style="margin-top:14px;justify-content:flex-start">
-            <button class="btn" id="finishBtn" type="button">Finish now</button>
+          <div style="margin-top:12px"><div class="muted">Strength signals</div><div id="strengths"></div></div>
+          <div style="margin-top:8px"><div class="muted">Priority signals</div><div id="needs"></div></div>
+          <div class="row" style="margin-top:14px;justify-content:flex-start">
+            <button id="finishBtn" class="btn">Finish now</button>
           </div>
         </div>
       </div>
-    </section>
 
-    <!-- Report -->
-    <section>
-      <div class="container">
-        <div class="examCard" id="report" style="display:none">
+      <!-- Report -->
+      <div id="report" class="card" style="display:none;margin-top:16px">
+        <div class="row">
+          <div style="font-weight:700">Instant Report</div>
           <div class="row">
-            <div class="examTitle">Instant Report</div>
-            <div class="btns">
-              <button class="btn" onclick="window.print()">Download PDF</button>
-              <a class="btn" href="#start" onclick="location.reload()">Restart</a>
-              <button class="btn primary" id="sendToTutorBtn" type="button">Email Results</button>
-            </div>
-          </div>
-
-          <p class="examMuted">Targets reflect typical NYC/NYS expectations.</p>
-
-          <div class="kpis">
-            <div class="kpiBox"><div class="examMuted">Math level (current)</div><div class="num" id="mathLevel">—</div></div>
-            <div class="kpiBox"><div class="examMuted">ELA level (current)</div><div class="num" id="elaLevel">—</div></div>
-            <div class="kpiBox"><div class="examMuted">Overall confidence</div><div class="num" id="confOut">—</div></div>
-          </div>
-
-          <div class="kpis" style="margin-top:10px">
-            <div class="kpiBox"><div class="examMuted">Math expected</div><div class="num" id="mathExpected">—</div><div class="examMuted" id="mathGap" style="margin-top:6px">—</div></div>
-            <div class="kpiBox"><div class="examMuted">ELA expected</div><div class="num" id="elaExpected">—</div><div class="examMuted" id="elaGap" style="margin-top:6px">—</div></div>
-            <div class="kpiBox"><div class="examMuted">Grade reference</div><div class="num" id="gradeRef">Auto</div></div>
-          </div>
-
-          <div style="margin-top:12px">
-            <div class="examMuted">Strengths</div><div id="strengthList"></div>
-          </div>
-          <div style="margin-top:8px">
-            <div class="examMuted">Priorities</div><div id="needList"></div>
-          </div>
-
-          <div style="margin-top:12px">
-            <label class="examMuted" style="display:flex;align-items:center;gap:8px">
-              <input type="checkbox" id="stdToggle"> Show standards details
-            </label>
-            <div id="stdDetails" style="display:none; margin-top:8px" class="examMuted"></div>
+            <button class="btn" onclick="window.print()">Download PDF</button>
+            <button id="sendToTutorBtn" class="btn primary">Send to Tutor</button>
           </div>
         </div>
+        <p class="muted">Estimates by domain, confidence, targets vs grade, strengths & priorities, plus a quick action plan.</p>
+        <div class="row" style="gap:10px;flex-wrap:wrap">
+          <div class="card" style="flex:1;min-width:160px"><div class="muted">Math level (current)</div><div id="mathLevel" style="font-weight:700;font-size:22px">—</div></div>
+          <div class="card" style="flex:1;min-width:160px"><div class="muted">ELA level (current)</div><div id="elaLevel" style="font-weight:700;font-size:22px">—</div></div>
+          <div class="card" style="flex:1;min-width:160px"><div class="muted">Overall confidence</div><div id="confOut" style="font-weight:700;font-size:22px">—</div></div>
+        </div>
+        <div class="row" style="gap:10px;flex-wrap:wrap;margin-top:10px">
+          <div class="card" style="flex:1;min-width:200px"><div class="muted">Math expected</div><div id="mathExpected" style="font-weight:700">—</div><div id="mathGap" class="muted" style="margin-top:6px">—</div></div>
+          <div class="card" style="flex:1;min-width:200px"><div class="muted">ELA expected</div><div id="elaExpected" style="font-weight:700">—</div><div id="elaGap" class="muted" style="margin-top:6px">—</div></div>
+          <div class="card" style="flex:1;min-width:200px"><div class="muted">Grade reference</div><div id="gradeRef" style="font-weight:700">Auto</div></div>
+        </div>
+
+        <div style="margin-top:12px"><div class="muted">Strengths</div><div id="strengthList"></div></div>
+        <div style="margin-top:8px"><div class="muted">Priorities</div><div id="needList"></div></div>
+
+        <div style="margin-top:12px">
+          <label class="muted" style="display:flex;align-items:center;gap:8px">
+            <input type="checkbox" id="stdToggle"> Show standards details
+          </label>
+          <div id="stdDetails" class="muted" style="display:none;margin-top:8px"></div>
+        </div>
       </div>
+
+      <!-- Hidden Formspree form: this sends you the email -->
+      <form id="resultsForm" action="https://formspree.io/f/mzzvlgge" method="POST" style="display:none">
+        <input type="hidden" name="student_name" id="fs_student_name">
+        <input type="hidden" name="parent_email"  id="fs_parent_email">
+        <input type="hidden" name="grade_selected" id="fs_grade">
+        <input type="hidden" name="math_level"     id="fs_math">
+        <input type="hidden" name="ela_level"      id="fs_ela">
+        <input type="hidden" name="confidence"     id="fs_conf">
+        <input type="hidden" name="strengths"      id="fs_strengths">
+        <input type="hidden" name="needs"          id="fs_needs">
+        <input type="hidden" name="answers_json"   id="fs_answers">
+        <input type="hidden" name="summary"        id="fs_summary">
+      </form>
     </section>
 
-    <!-- Hidden Formspree form (emails you results) -->
-    <form id="resultsForm" action="https://formspree.io/f/mzzvlgge" method="POST" style="display:none">
-      <!-- (Optional) visible inputs you might add elsewhere can copy into these -->
-      <input type="text"  name="student_name"   id="fs_student_name">
-      <input type="email" name="parent_email"   id="fs_parent_email">
-
-      <input type="text"  name="grade_selected" id="fs_grade">
-      <input type="text"  name="math_level"     id="fs_math">
-      <input type="text"  name="ela_level"      id="fs_ela">
-      <input type="text"  name="confidence"     id="fs_confidence">
-      <input type="text"  name="strengths"      id="fs_strengths">
-      <input type="text"  name="needs"          id="fs_needs">
-      <textarea name="answers_json" id="fs_answers_json"></textarea>
-
-      <input type="hidden" name="_subject" value="New Diagnostic Results">
-      <input type="hidden" name="_redirect" value="/diagnostic-test.html#thanks">
-    </form>
+    <section id="faq" class="container" style="padding:30px 0 70px">
+      <h3>Mini-FAQ</h3>
+      <p class="muted"><strong>Grades:</strong> 2–8 • <strong>Length:</strong> ~20 adaptive questions • <strong>Privacy:</strong> runs in the browser; only results you submit are sent.</p>
+    </section>
   </main>
 
-  <footer>
-    <div class="container">© <span id="year"></span> Ripa Elevate Academy · Private by design</div>
+  <footer class="container" style="padding:20px 0 50px;border-top:1px solid rgba(255,255,255,.12)" class="muted">
+    © <span id="year"></span> Ripa Elevate Academy
   </footer>
 
-  <script src="./bank.js"></script>
-  <script src="./app.js"></script>
+  <!-- Your item generator bank -->
+  <script src="bank.js"></script>
+  <!-- Runtime with Formspree wiring -->
+  <script src="app.js"></script>
 </body>
 </html>
+
