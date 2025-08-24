@@ -1,218 +1,294 @@
-/* app.js — adaptive runtime with Formspree integration — v1.1 */
+// app.js
+// Generator + simple renderer for ripa-diagnostic-preview
 
-(() => {
-  const { MATH_GENS, ELA_GENS, TAG_TO_STD, utils } = window.BANK;
+import { STRANDS, FORMS, DIFF, MATH_ITEMS, PASSAGES, LANG_ITEMS, WRITING_PROMPTS, WRITING_RUBRIC } from './bank.js';
 
-  // Config
-  const BANK_SIZE = 120;
-  const ADMIN_LENGTH = 20;
+// -------- Blueprint (per attempt) -------------------------------------------
+const BLUEPRINT = {
+  math: { quota: { NO:4, FR:3, ALG:3, GEOM:3, MD:3 }, total:16 },
+  readingA: { type: "any" /* RL or RI */, questions: 6 },
+  readingB: { type: "any", questions: 6 },
+  language: { total: 5 },
+  writing: { minutes: 10 }
+};
 
-  // Elements
-  const beginBtn = document.getElementById('beginBtn');
-  const gradeSel = document.getElementById('gradeSel');
-  const app = document.getElementById('app');
-  const prestart = document.getElementById('prestart');
-  const report = document.getElementById('report');
+// -------- Exposure tracking (prevents strand hogging over time) -------------
+const EXPOSURE_KEY = "ripa_exposure_v1";
+function getExposure() {
+  try { return JSON.parse(localStorage.getItem(EXPOSURE_KEY)) || { NO:0, FR:0, ALG:0, GEOM:0, MD:0, LANG:0, RL:0, RI:0, W:0 }; }
+  catch { return { NO:0, FR:0, ALG:0, GEOM:0, MD:0, LANG:0, RL:0, RI:0, W:0 }; }
+}
+function bumpExposure(keys) {
+  const exp = getExposure();
+  keys.forEach(k => { exp[k] = (exp[k]||0)+1; });
+  localStorage.setItem(EXPOSURE_KEY, JSON.stringify(exp));
+}
 
-  const sectionTitle = document.getElementById('sectionTitle');
-  const sectionHint  = document.getElementById('sectionHint');
-  const qtext = document.getElementById('qtext');
-  const choicesEl = document.getElementById('choices');
-  const progressText = document.getElementById('progressText');
-  const progressFill = document.getElementById('progressFill');
+// -------- Utilities ---------------------------------------------------------
+function between(n, a, b){ return n>=a && n<=b; }
+function sample(arr, n){
+  const copy = [...arr];
+  const out = [];
+  while (copy.length && out.length < n) {
+    const i = Math.floor(Math.random()*copy.length);
+    out.push(copy.splice(i,1)[0]);
+  }
+  return out;
+}
+function sortByExposureFirst(candidates, strandKey){
+  const exp = getExposure();
+  return [...candidates].sort((a,b)=>{
+    const ea = exp[strandKey] ?? 0, eb = exp[strandKey] ?? 0; // same exp tie-break random
+    return (ea - eb) || (Math.random() - 0.5);
+  });
+}
 
-  const domainNow = document.getElementById('domainNow');
-  const estLevel  = document.getElementById('estLevel');
-  const confidence = document.getElementById('confidence');
-  const strengthsEl = document.getElementById('strengths');
-  const needsEl = document.getElementById('needs');
-
-  const mathLevelEl = document.getElementById('mathLevel');
-  const elaLevelEl  = document.getElementById('elaLevel');
-  const confOutEl   = document.getElementById('confOut');
-  const mathExpEl   = document.getElementById('mathExpected');
-  const elaExpEl    = document.getElementById('elaExpected');
-  const mathGapEl   = document.getElementById('mathGap');
-  const elaGapEl    = document.getElementById('elaGap');
-  const gradeRefEl  = document.getElementById('gradeRef');
-  const strengthList = document.getElementById('strengthList');
-  const needList = document.getElementById('needList');
-  const stdToggle = document.getElementById('stdToggle');
-  const stdDetails = document.getElementById('stdDetails');
-  const finishBtn = document.getElementById('finishBtn');
-  const sendBtn = document.getElementById('sendToTutorBtn');
-
-  // State
-  let chosenGrade = null;
-  let runSeq = [], step = 0;
-  let est = 4.0, conf = 0.5, domain = 'Math';
-  let correctM = 0, correctE = 0;
-  const strengths = new Map(), needs = new Map();
-  const answersLog = []; // <--- NEW: log of each Q, student answer, correct/wrong
-
-  // Build a synthetic bank
-  function buildBank(){
-    const needM = Math.ceil(BANK_SIZE/2), needE = BANK_SIZE - needM;
-    const bankM = []; while(bankM.length<needM) bankM.push(utils.pick(MATH_GENS)());
-    const bankE = []; while(bankE.length<needE) bankE.push(utils.pick(ELA_GENS)());
-
-    const mAdmin = Math.ceil(ADMIN_LENGTH/2), eAdmin = ADMIN_LENGTH - mAdmin;
-    runSeq = utils.shuffle(bankM).slice(0,mAdmin).concat(utils.shuffle(bankE).slice(0,eAdmin));
+// -------- Generator ---------------------------------------------------------
+export function generateTest(grade){
+  // 1) Math selection by quota with exposure-aware ordering
+  const mathPicked = [];
+  for (const [strand, need] of Object.entries(BLUEPRINT.math.quota)) {
+    const pool = MATH_ITEMS.filter(it => it.strand===strand && between(grade, it.grade_min, it.grade_max));
+    if (pool.length === 0) continue;
+    const ordered = sortByExposureFirst(pool, strand);
+    mathPicked.push(...ordered.slice(0, need));
   }
 
-  function expectedForGrade(g){
-    if(!g) return null;
-    const gg = Math.max(2, Math.min(8, Number(g)));
-    return {math: gg*1.0, ela: gg*1.0};
+  // 2) Reading passages (A & B), prefer lowest-exposed type
+  const exp = getExposure();
+  const types = ["RL","RI"].sort((a,b)=> (exp[a]??0)-(exp[b]??0));
+  function pickPassage(desiredType){
+    const t = desiredType==="any" ? types[0] : desiredType;
+    const opts = PASSAGES.filter(p => between(grade, p.grade_band[0], p.grade_band[1]) && p.type===t);
+    if (opts.length) return sample(opts,1)[0];
+    // fallback: any type in band
+    const any = PASSAGES.filter(p => between(grade, p.grade_band[0], p.grade_band[1]));
+    return sample(any,1)[0];
   }
+  const passageA = pickPassage(BLUEPRINT.readingA.type);
+  bumpExposure([passageA.type]);
+  const passageB = pickPassage(BLUEPRINT.readingB.type);
+  bumpExposure([passageB.type]);
 
-  function tagTop(map, n){ return Array.from(map.entries()).sort((a,b)=>b[1]-a[1]).slice(0,n).map(x=>x[0]); }
+  // 3) Language items
+  const langPool = LANG_ITEMS.filter(it => between(grade, it.grade_min, it.grade_max));
+  const languagePicked = sample(langPool, BLUEPRINT.language.total);
+  bumpExposure(["LANG"]);
 
-  function renderHUD(){
-    domainNow.textContent = domain;
-    estLevel.textContent = est.toFixed(1);
-    confidence.textContent = Math.round(conf*100)+'%';
-    strengthsEl.innerHTML = tagTop(strengths,4).map(t=>`<span class="pill">${t}</span>`).join('') || '<span class="examMuted">—</span>';
-    needsEl.innerHTML = tagTop(needs,4).map(t=>`<span class="pill">${t}</span>`).join('') || '<span class="examMuted">—</span>';
-  }
+  // 4) Writing prompt by grade band, rotate by exposure "W"
+  const wChoices = WRITING_PROMPTS.filter(w => between(grade, w.grade_band[0], w.grade_band[1]));
+  const writing = sample(wChoices, 1)[0];
 
-  function renderQ(){
-    const total = runSeq.length;
-    progressText.textContent = `${step+1} / ${total}`;
-    progressFill.style.width = (step/total*100)+'%';
+  // 5) Bump math strand exposure
+  bumpExposure(Object.keys(BLUEPRINT.math.quota));
+  bumpExposure(["W"]);
 
-    const q = runSeq[step];
-    domain = (step < Math.ceil(ADMIN_LENGTH/2)) ? 'Math' : 'ELA';
-    sectionTitle.textContent = `${domain} — Question ${domain==='Math' ? (step+1) : (step - Math.ceil(ADMIN_LENGTH/2) + 1)}`;
-    sectionHint.textContent  = domain==='Math' ? 'Grade-aligned skills. Try your best!' : 'Reading, language, and writing skills.';
-
-    qtext.textContent = q.t;
-    choicesEl.innerHTML = '';
-    utils.shuffle(q.a.slice()).forEach(opt=>{
-      const b=document.createElement('button'); b.textContent=opt;
-      b.onclick=()=>submitAnswer(q,opt);
-      choicesEl.appendChild(b);
-    });
-
-    renderHUD();
-  }
-
-  function submitAnswer(q, opt){
-    const isCorrect = (opt===q.c);
-
-    // Log each answer
-    answersLog.push({
-      question: q.t,
-      chosen: opt,
-      correct: q.c,
-      wasCorrect: isCorrect,
-      domain: domain,
-      level: q.lvl
-    });
-
-    if(isCorrect){
-      domain==='Math' ? correctM++ : correctE++;
-      est = Math.min(8, est + (q.lvl>=est ? 0.20 : 0.10));
-      conf = Math.min(1, conf + 0.03);
-      strengths.set(q.tag, (strengths.get(q.tag)||0) + 1);
-    } else {
-      est = Math.max(2, est - 0.08);
-      conf = Math.max(0.2, conf - 0.02);
-      needs.set(q.tag, (needs.get(q.tag)||0) + 1);
-    }
-
-    step++;
-    if(step>=runSeq.length){ finish(); } else { renderQ(); }
-  }
-
-  function gapText(cur, exp){
-    if(exp===null) return 'Set a grade to see target';
-    const diff = +(cur - exp).toFixed(1);
-    if(diff >= 0.3) return `Ahead (+${diff})`;
-    if(diff <= -0.3) return `Below (${diff})`;
-    return 'On track (±0.2)';
-  }
-
-  function finish(){
-    progressFill.style.width = '100%';
-
-    const mathLevel = Math.min(8, Math.max(2, (chosenGrade||5) + (correctM - (ADMIN_LENGTH/2)/2)*0.2));
-    const elaLevel  = Math.min(8, Math.max(2, (chosenGrade||5) + (correctE - (ADMIN_LENGTH/2)/2)*0.2));
-
-    mathLevelEl.textContent = mathLevel.toFixed(1);
-    elaLevelEl.textContent  = elaLevel.toFixed(1);
-    confOutEl.textContent   = Math.round(conf*100)+'%';
-
-    const exp = expectedForGrade(chosenGrade);
-    const mExp = exp ? exp.math : null;
-    const eExp = exp ? exp.ela  : null;
-    mathExpEl.textContent = mExp!==null ? mExp.toFixed(1) : '—';
-    elaExpEl.textContent  = eExp!==null  ? eExp.toFixed(1)  : '—';
-    mathGapEl.textContent = gapText(parseFloat(mathLevelEl.textContent), mExp);
-    elaGapEl.textContent  = gapText(parseFloat(elaLevelEl.textContent),  eExp);
-    gradeRefEl.textContent = chosenGrade ? `Grade ${chosenGrade}` : 'Auto';
-
-    strengthList.innerHTML = tagTop(strengths,6).map(t=>`<span class="pill">${t}</span>`).join('') || '—';
-    needList.innerHTML      = tagTop(needs,6).map(t=>`<span class="pill">${t}</span>`).join('') || '—';
-
-    stdDetails.innerHTML = `<div><strong>Skill → Standards family</strong></div>` + 
-      Array.from(new Map([...strengths, ...needs])).map(([tag])=>{
-        const std = TAG_TO_STD[tag] || '—';
-        return `<div class="pill">${tag}</div><div class="examMuted">${std}</div>`;
-      }).join('');
-    stdToggle.checked = false;
-    stdToggle.onchange = ()=>{ stdDetails.style.display = stdToggle.checked ? 'block' : 'none'; };
-
-    app.style.display = 'none';
-    report.style.display = 'block';
-    report.scrollIntoView({behavior:'smooth'});
-
-    // Auto-send results at finish
-    sendToFormspree(mathLevel, elaLevel);
-  }
-
-  // === Send results to Formspree ===
-  function sendToFormspree(mathLevel, elaLevel){
-    const payload = {
-      student_name: "Student",
-      grade_selected: chosenGrade ?? 'Auto',
-      timestamp: new Date().toISOString(),
-      math_level: mathLevel,
-      ela_level: elaLevel,
-      confidence: Math.round(conf*100) + '%',
-      strengths: Array.from(strengths.keys()).join(', '),
-      needs: Array.from(needs.keys()).join(', '),
-      answers: answersLog.map((a,i)=> 
-        `Q${i+1} (${a.domain}, lvl ${a.level}): "${a.question}" → chosen: ${a.chosen}, correct: ${a.correct}, result: ${a.wasCorrect ? '✔' : '✘'}`
-      ).join('\n')
-    };
-
-    fetch("https://formspree.io/f/mzzvlgge", {
-      method: "POST",
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    })
-    .then(res=>{
-      if(res.ok) alert("Results sent to tutor!");
-      else alert("Could not send results.");
-    })
-    .catch(()=> alert("Error sending results."));
-  }
-
-  // Begin
-  beginBtn.onclick = ()=>{
-    chosenGrade = gradeSel.value ? Number(gradeSel.value) : null;
-    buildBank();
-    step=0; est = chosenGrade ? chosenGrade : 4.0; conf=0.5; correctM=0; correctE=0;
-    strengths.clear(); needs.clear(); answersLog.length = 0;
-    prestart.style.display='none';
-    app.style.display='grid';
-    renderQ();
-    document.getElementById('exam').scrollIntoView({behavior:'smooth'});
+  return {
+    meta: { grade, createdAt: new Date().toISOString() },
+    math: mathPicked,
+    passages: [
+      { role:"A", ...passageA, questions: sample(passageA.questions, BLUEPRINT.readingA.questions) },
+      { role:"B", ...passageB, questions: sample(passageB.questions, BLUEPRINT.readingB.questions) }
+    ],
+    language: languagePicked,
+    writing: { ...writing, minutes: BLUEPRINT.writing.minutes, rubric: WRITING_RUBRIC }
   };
+}
 
-  finishBtn.onclick = finish;
-  if(sendBtn) sendBtn.onclick = finish;
-})();
+// -------- Rendering (very lightweight) --------------------------------------
+function el(tag, attrs={}, children=[]){
+  const node = document.createElement(tag);
+  Object.entries(attrs).forEach(([k,v]) => {
+    if (k==="class") node.className = v;
+    else if (k.startsWith("on") && typeof v==="function") node.addEventListener(k.substring(2), v);
+    else node.setAttribute(k,v);
+  });
+  (Array.isArray(children)?children:[children]).forEach(c => {
+    node.append(c instanceof Node ? c : document.createTextNode(String(c)));
+  });
+  return node;
+}
+
+export function mountTest(container, test){
+  container.innerHTML = "";
+
+  // Header
+  container.append(
+    el("h2",{},`Baseline Diagnostic (Grade ${test.meta.grade})`)
+  );
+
+  // Math
+  container.append(el("h3",{},"Math (16 items)"));
+  const mList = el("ol",{class:"item-list"});
+  test.math.forEach((it,idx)=>{
+    const li = el("li",{class:"item"},[
+      el("div",{class:"stem"},`${it.stem}`),
+    ]);
+    if (it.form === "single"){
+      const group = `m_${it.id}`;
+      it.choices.forEach(choice=>{
+        li.append(el("label",{class:"choice"},[
+          el("input",{type:"radio", name:group, value:choice}),
+          " ", choice
+        ]));
+      });
+    } else if (it.form === "numeric"){
+      li.append(el("input",{type:"text", class:"numeric", "data-id":it.id, placeholder:"Enter number/fraction"}));
+    } else {
+      li.append(el("textarea",{rows:"2", placeholder:"Brief answer"}));
+    }
+    mList.append(li);
+  });
+  container.append(mList);
+
+  // Reading A & B
+  test.passages.forEach(p=>{
+    container.append(el("h3",{},`Reading ${p.role} (${p.type}) – ${p.questions.length} questions`));
+    container.append(el("div",{class:"passage"}, p.text));
+    const qList = el("ol",{class:"item-list"});
+    p.questions.forEach(q=>{
+      const li = el("li",{class:"item"},[
+        el("div",{class:"stem"},q.stem)
+      ]);
+      const group = `p_${p.id}_${q.id}`;
+      q.choices.forEach(c=>{
+        li.append(el("label",{class:"choice"},[
+          el("input",{type:"radio", name:group, value:c}),
+          " ", c
+        ]));
+      });
+      qList.append(li);
+    });
+    container.append(qList);
+  });
+
+  // Language
+  container.append(el("h3",{},"Language (5 items)"));
+  const lList = el("ol",{class:"item-list"});
+  test.language.forEach(it=>{
+    const li = el("li",{class:"item"},[
+      el("div",{class:"stem"},it.stem)
+    ]);
+    const group = `l_${it.id}`;
+    it.choices.forEach(c=>{
+      li.append(el("label",{class:"choice"},[
+        el("input",{type:"radio", name:group, value:c}),
+        " ", c
+      ]));
+    });
+    lList.append(li);
+  });
+  container.append(lList);
+
+  // Writing with timer
+  container.append(el("h3",{},"Writing (10 minutes)"));
+  container.append(el("p",{class:"writing-prompt"}, test.writing.prompt));
+  const timer = el("div",{id:"timer", class:"timer"}, "10:00");
+  const ta = el("textarea",{id:"writing", rows:"8", placeholder:"Write your response here. The timer will count down."});
+  container.append(timer, ta);
+
+  startTimer(10, timer);
+
+  // Submit
+  container.append(el("button",{id:"submitBtn", class:"primary", onClick: ()=>submit(test)}, "Submit"));
+}
+
+// simple mm:ss countdown
+function startTimer(minutes, display){
+  let remaining = minutes * 60;
+  function tick(){
+    const m = Math.floor(remaining/60).toString().padStart(2,"0");
+    const s = (remaining%60).toString().padStart(2,"0");
+    display.textContent = `${m}:${s}`;
+    remaining--;
+    if (remaining >= 0) setTimeout(tick, 1000);
+    else display.textContent = "00:00";
+  }
+  tick();
+}
+
+// In this preview we compute a raw score & show strand breakdown.
+function submit(test){
+  // Basic scoring (choices/numeric exact match)
+  const form = document;
+  let correct = 0, total = 0;
+  const strandScores = { NO:[0,0], FR:[0,0], ALG:[0,0], GEOM:[0,0], MD:[0,0], RL:[0,0], RI:[0,0], LANG:[0,0] };
+
+  // Math
+  test.math.forEach(it=>{
+    total++;
+    let val = null;
+    if (it.form==="single"){
+      const checked = form.querySelector(`input[name="m_${it.id}"]:checked`);
+      val = checked?.value || null;
+    } else if (it.form==="numeric"){
+      val = form.querySelector(`input[data-id="${it.id}"]`)?.value?.trim();
+    } else {
+      val = form.querySelector(`textarea`)?.value?.trim();
+    }
+    if (val && String(val)===String(it.answer)) { correct++; strandScores[it.strand][0]++; }
+    strandScores[it.strand][1]++;
+  });
+
+  // Reading
+  test.passages.forEach(p=>{
+    p.questions.forEach(q=>{
+      total++;
+      const checked = document.querySelector(`input[name="p_${p.id}_${q.id}"]:checked`);
+      const val = checked?.value || null;
+      const key = p.type; // RL or RI
+      if (val && val===q.answer){ correct++; strandScores[key][0]++; }
+      strandScores[key][1]++;
+    });
+  });
+
+  // Language
+  test.language.forEach(it=>{
+    total++;
+    const checked = document.querySelector(`input[name="l_${it.id}"]:checked`);
+    const val = checked?.value || null;
+    if (val && val===it.answer){ correct++; strandScores.LANG[0]++; }
+    strandScores.LANG[1]++;
+  });
+
+  // Writing is rubric-based; here we just capture text length as proxy so preview gives a hint.
+  const writing = document.getElementById("writing")?.value || "";
+  const words = writing.split(/\s+/).filter(Boolean).length;
+  const writingNote = words >= 120 ? "Writing sample length is strong (120+ words). Score via rubric." :
+                      words >= 60  ? "Writing sample length is adequate (60–119 words). Score via rubric." :
+                                     "Writing is short (<60 words). Recommend explicit instruction on elaboration.";
+
+  // Show report
+  const pct = Math.round(100*correct/total);
+  const report = document.getElementById("report");
+  report.innerHTML = `
+    <h3>Instant Report</h3>
+    <p><strong>Raw Score:</strong> ${correct}/${total} (${pct}%)</p>
+    <h4>By Strand</h4>
+    <ul>
+      ${Object.entries(strandScores).map(([k,[c,t]])=>`<li><b>${k}</b>: ${t?Math.round(100*c/t):0}% (${c}/${t})</li>`).join("")}
+    </ul>
+    <h4>Writing</h4>
+    <p>${writingNote}</p>
+    <p><em>Use rubric traits:</em> ${WRITING_RUBRIC.traits.join(", ")} (0–4 each).</p>
+  `;
+  report.scrollIntoView({behavior:"smooth"});
+}
+
+// Wire up diagnostic-test.html
+export function boot(){
+  const gradeSelect = document.getElementById("grade");
+  const startBtn = document.getElementById("startBtn");
+  const mount = document.getElementById("mount");
+  const report = document.getElementById("report");
+
+  startBtn?.addEventListener("click", ()=>{
+    const grade = Number(gradeSelect.value || 5);
+    const test = generateTest(grade);
+    mountTest(mount, test);
+    report.innerHTML = "";
+  });
+}
+
 
 
