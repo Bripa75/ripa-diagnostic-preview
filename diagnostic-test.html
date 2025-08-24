@@ -2,31 +2,54 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>Ripa Diagnostic — Preview</title>
+  <title>Ripa Diagnostic — Test</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link href="./styles.css" rel="stylesheet">
 </head>
 <body>
-  <header class="topbar">
-    <h1>Baseline Diagnostic (Preview)</h1>
+  <div class="bg-gradient"></div>
+
+  <header>
+    <div class="container row">
+      <div class="brand"><span class="orb"></span> Ripa Diagnostic</div>
+      <nav><a href="./index.html" class="btn">Back</a></nav>
+    </div>
   </header>
 
   <main class="container">
-    <section class="panel">
-      <label for="grade">Select grade tested:</label>
-      <select id="grade">
-        <option value="2">2</option><option value="3">3</option>
-        <option value="4">4</option><option value="5" selected>5</option>
-        <option value="6">6</option><option value="7">7</option><option value="8">8</option>
-      </select>
-      <button id="startBtn" class="primary">Start Test</button>
+    <section class="examCard">
+      <div class="stage">
+        <div>
+          <div class="examTitle">Baseline Diagnostic</div>
+          <p class="examMuted">Select grade and click Start.</p>
+          <div style="margin-top:10px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+            <label class="label" for="grade">Grade</label>
+            <select id="grade" class="btn" style="padding:10px 12px">
+              <option value="2">2</option><option value="3">3</option>
+              <option value="4">4</option><option value="5" selected>5</option>
+              <option value="6">6</option><option value="7">7</option><option value="8">8</option>
+            </select>
+            <button id="startBtn" class="btn primary">Start Test</button>
+          </div>
+          <div class="kpis" style="margin-top:14px">
+            <div class="kpiBox"><div class="label">Math</div><div class="num">16</div></div>
+            <div class="kpiBox"><div class="label">Reading</div><div class="num">12</div></div>
+            <div class="kpiBox"><div class="label">Lang + Write</div><div class="num">5 + 10m</div></div>
+          </div>
+        </div>
+        <div>
+          <div class="label">Progress</div>
+          <div class="progBar"><div class="progFill" id="progFill"></div></div>
+          <p class="examMuted" style="margin-top:6px">Progress updates when you submit.</p>
+        </div>
+      </div>
     </section>
 
     <section id="mount" class="panel">
-      <p class="muted">Choose a grade and click “Start Test.”</p>
+      <p class="examMuted">Awaiting start…</p>
     </section>
 
-    <section id="report" class="panel report"></section>
+    <section id="report" class="panel"></section>
   </main>
 
   <script type="module">
@@ -35,3 +58,4 @@
   </script>
 </body>
 </html>
+
