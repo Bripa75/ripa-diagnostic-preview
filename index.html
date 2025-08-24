@@ -2,62 +2,59 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>Ripa Diagnostic — Test</title>
+  <title>Ripa Diagnostic Preview</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link href="./styles.css" rel="stylesheet">
 </head>
 <body>
+  <!-- background glow -->
   <div class="bg-gradient"></div>
+  <canvas id="fx"></canvas>
 
+  <!-- header -->
   <header>
     <div class="container row">
       <div class="brand"><span class="orb"></span> Ripa Diagnostic</div>
-      <nav><a href="./index.html" class="btn">Back</a></nav>
+      <nav>
+        <a href="./diagnostic-test.html" class="btn primary">Start Diagnostic</a>
+      </nav>
     </div>
   </header>
 
+  <!-- hero -->
   <main class="container">
-    <section class="examCard">
-      <div class="stage">
-        <div>
-          <div class="examTitle">Baseline Diagnostic</div>
-          <p class="examMuted">Select grade and click Start.</p>
-          <div style="margin-top:10px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-            <label class="label" for="grade">Grade</label>
-            <select id="grade" class="btn" style="padding:10px 12px">
-              <option value="2">2</option><option value="3">3</option>
-              <option value="4">4</option><option value="5" selected>5</option>
-              <option value="6">6</option><option value="7">7</option><option value="8">8</option>
-            </select>
-            <button id="startBtn" class="btn primary">Start Test</button>
-          </div>
-          <div class="kpis" style="margin-top:14px">
-            <div class="kpiBox"><div class="label">Math</div><div class="num">16</div></div>
-            <div class="kpiBox"><div class="label">Reading</div><div class="num">12</div></div>
-            <div class="kpiBox"><div class="label">Lang + Write</div><div class="num">5 + 10m</div></div>
-          </div>
-        </div>
-        <div>
-          <div class="label">Progress</div>
-          <div class="progBar"><div class="progFill" id="progFill"></div></div>
-          <p class="examMuted" style="margin-top:6px">Progress updates when you submit.</p>
-        </div>
+    <section class="hero">
+      <h1 class="headline">
+        Welcome to the <span class="txt-grad">Baseline Exam</span>
+      </h1>
+      <p class="sub">
+        A futuristic diagnostic that adapts to every student.<br>
+        10 Math questions + 10 English questions, balanced across grade-level skills.
+      </p>
+      <div class="accent-bar"></div>
+      <a class="btn primary" href="./diagnostic-test.html">Begin Test</a>
+    </section>
+
+    <!-- feature grid -->
+    <section class="grid3" style="margin-top:40px">
+      <div class="card">
+        <h3>Math Coverage</h3>
+        <p>Numbers & Operations, Fractions, Algebraic Thinking, Geometry, Measurement & Data.</p>
+      </div>
+      <div class="card">
+        <h3>English Coverage</h3>
+        <p>Reading Literature & Informational texts, plus targeted Language questions.</p>
+      </div>
+      <div class="card">
+        <h3>Action Plan</h3>
+        <p>Instant feedback with strand breakdowns, levels, and clear next steps.</p>
       </div>
     </section>
 
-    <section id="mount" class="panel">
-      <p class="examMuted">Awaiting start…</p>
-    </section>
-
-    <section id="report" class="panel"></section>
+    <!-- footer -->
+    <footer>
+      © Ripa Elevate Academy — Diagnostic Preview
+    </footer>
   </main>
-
-  <script type="module">
-    import { boot } from './app.js';
-    window.addEventListener('DOMContentLoaded', boot);
-  </script>
 </body>
 </html>
-
-
-
