@@ -1,9 +1,9 @@
 // app.js — Adaptive engine (20 Q total): 10 Math then 10 English.
-// Difficulty steps up on correct, down on incorrect. Works for grades 2–8.
+// Difficulty moves up on correct, down on incorrect. Grades 2–8.
 // Shows live progress, locks the test on completion, and renders a final report.
 
 import {
-  FORMS, DIFF,
+  DIFF,
   MATH_ITEMS, PASSAGES, LANG_ITEMS
 } from './bank.js';
 
@@ -40,8 +40,8 @@ function qIndexToDiff(i){
 function buildPools(grade){
   // Math pools by difficulty
   const mathByDiff = {
-    [DIFF.CORE]:  MATH_ITEMS.filter(it => it.diff===DIFF.CORE  && between(grade, it.grade_min, it.grade_max)),
-    [DIFF.ON]:    MATH_ITEMS.filter(it => it.diff===DIFF.ON    && between(grade, it.grade_min, it.grade_max)),
+    [DIFF.CORE]:    MATH_ITEMS.filter(it => it.diff===DIFF.CORE    && between(grade, it.grade_min, it.grade_max)),
+    [DIFF.ON]:      MATH_ITEMS.filter(it => it.diff===DIFF.ON      && between(grade, it.grade_min, it.grade_max)),
     [DIFF.STRETCH]: MATH_ITEMS.filter(it => it.diff===DIFF.STRETCH && between(grade, it.grade_min, it.grade_max)),
   };
 
@@ -54,7 +54,7 @@ function buildPools(grade){
       englishPool[diff].push(makeEnglishQuestionEnvelope(p, q, diff));
     });
   });
-  // Language questions serve as additional English items (they already have a diff field)
+  // Language questions serve as additional English items
   LANG_ITEMS.forEach(it=>{
     if (!between(grade, it.grade_min, it.grade_max)) return;
     englishPool[it.diff]?.push({
@@ -68,7 +68,6 @@ function buildPools(grade){
     });
   });
 
-  // Fallbacks if a pool is thin: borrow from adjacent difficulties (done at pick time)
   return { mathByDiff, englishPool };
 }
 
@@ -86,7 +85,7 @@ function takeFrom(poolMap, wantDiff, usedIds){
     if (pool.length) return { item: pickOne(pool), usedDiff: d };
   }
 
-  // As a last resort, search *any* difficulty, even if not in order
+  // As a last resort, search *any* difficulty
   const any = Object.values(poolMap).flat().filter(x=>!usedIds.has(x.id));
   if (any.length) return { item: pickOne(any), usedDiff: DIFF.ON };
   return { item: null, usedDiff: wantDiff };
@@ -99,7 +98,6 @@ function initState(grade){
   const pools = buildPools(grade);
   state = {
     grade,
-    step: 0,
     phase: "math",                  // "math" then "english"
     targetInPhase: TARGET.math,
     answeredInPhase: 0,
@@ -115,7 +113,8 @@ function initState(grade){
     total: 0,
     strands: { NO:[0,0], FR:[0,0], ALG:[0,0], GEOM:[0,0], MD:[0,0], RL:[0,0], RI:[0,0], LANG:[0,0] },
 
-    pools
+    pools,
+    current: null
   };
 }
 
@@ -189,34 +188,32 @@ function answer(chosen){
   if (!state || !state.current) return;
 
   const item = state.current;
-  const correct = String(chosen) === String(item.answer);
+  const isCorrect = String(chosen) === String(item.answer);
   state.total++;
-  if (correct) state.correct++;
+  if (isCorrect) state.correct++;
 
   // strand bookkeeping
   if (state.phase==="math"){
-    // Math items have a 'strand' field; pull from original pool by id
-    const original = MATH_ITEMS.find(x=>x.id===item.id);
-    const k = original?.strand || "NO";
-    state.strands[k][1]++;          // total
-    if (correct) state.strands[k][0]++; // correct
+    const strand = item.strand || (MATH_ITEMS.find(x=>x.id===item.id)?.strand) || "NO";
+    state.strands[strand][1]++;          // total
+    if (isCorrect) state.strands[strand][0]++; // correct
 
     // adapt difficulty for next math question
-    state.mathDiff = correct
-      ? (state.mathDiff===DIFF.ON ? DIFF.STRETCH : DIFF.STRETCH)
-      : (state.mathDiff===DIFF.ON ? DIFF.CORE : DIFF.CORE);
+    state.mathDiff = isCorrect
+      ? (state.mathDiff===DIFF.CORE ? DIFF.ON : DIFF.STRETCH)
+      : (state.mathDiff===DIFF.STRETCH ? DIFF.ON : DIFF.CORE);
 
     state.answeredInPhase++;
   } else {
     // English: domain is RL/RI/LANG already on the item
     const k = item.domain || "RL";
     state.strands[k][1]++;
-    if (correct) state.strands[k][0]++;
+    if (isCorrect) state.strands[k][0]++;
 
     // adapt difficulty for next english question
-    state.engDiff = correct
-      ? (state.engDiff===DIFF.ON ? DIFF.STRETCH : DIFF.STRETCH)
-      : (state.engDiff===DIFF.ON ? DIFF.CORE : DIFF.CORE);
+    state.engDiff = isCorrect
+      ? (state.engDiff===DIFF.CORE ? DIFF.ON : DIFF.STRETCH)
+      : (state.engDiff===DIFF.STRETCH ? DIFF.ON : DIFF.CORE);
 
     state.answeredInPhase++;
   }
