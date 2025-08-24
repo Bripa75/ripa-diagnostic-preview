@@ -13,7 +13,10 @@ header{position:sticky;top:0;z-index:20;backdrop-filter: blur(10px) saturate(140
   background:linear-gradient(180deg, rgba(7,10,18,.85), rgba(7,10,18,.5));border-bottom:1px solid var(--stroke)}
 header .row{display:flex;align-items:center;justify-content:space-between;padding:14px 0}
 .brand{display:flex;align-items:center;gap:10px;font-weight:700;letter-spacing:.2px}
-.orb{width:12px;height:12px;border-radius:50%;background:linear-gradient(135deg,var(--accentA),var(--accentB));box-shadow:var(--glow)}
+.orb{width:14px;height:14px;border-radius:50%;
+  background:linear-gradient(135deg,var(--accentA),var(--accentB));
+  box-shadow:0 0 12px rgba(103,232,249,.7),0 0 16px rgba(167,139,250,.6)}
+
 nav a{padding:10px 14px;border-radius:12px;opacity:.95;transition:.2s}
 nav a:hover{background:var(--glass)}
 
@@ -28,8 +31,10 @@ canvas#fx{position:fixed;inset:0;z-index:-1;opacity:.35;pointer-events:none}
 .headline{font-size: clamp(28px, 5vw, 56px);line-height:1.05;margin:0 0 10px;font-weight:700}
 .txt-grad{background:linear-gradient(90deg,var(--accentA),var(--accentB));-webkit-background-clip:text;background-clip:text;color:transparent}
 .sub{font-size:clamp(16px,2.2vw,20px);color:var(--muted);margin:0 auto 18px;width:min(820px,92%)}
-.accent-bar{height:3px;width:min(640px,80%);margin:22px auto;border-radius:999px;background:linear-gradient(90deg,var(--accentA),var(--accentB));
-  position:relative;overflow:hidden;filter:blur(.2px)}
+.accent-bar{height:3px;width:min(640px,80%);margin:22px auto;border-radius:999px;
+  background:linear-gradient(90deg,var(--accentA),var(--accentB));
+  position:relative;overflow:hidden;filter:blur(.2px);
+  box-shadow:0 0 12px rgba(103,232,249,.45),0 0 18px rgba(167,139,250,.35)}
 .accent-bar::after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,transparent,rgba(255,255,255,.7),transparent);
   animation:shine 2.1s infinite linear}
 @keyframes shine{from{transform:translateX(-100%)}to{transform:translateX(100%)}}
@@ -43,10 +48,45 @@ canvas#fx{position:fixed;inset:0;z-index:-1;opacity:.35;pointer-events:none}
 .card p{margin:0;color:var(--muted)}
 
 .btn{display:inline-flex;align-items:center;gap:10px;padding:12px 16px;border-radius:14px;border:1px solid var(--stroke);
-  background:var(--glass);font-weight:600;cursor:pointer}
-.btn.primary{background:linear-gradient(135deg, rgba(103,232,249,.18), rgba(167,139,250,.18));box-shadow:var(--glow)}
-.btn:hover{transform:translateY(-1px);box-shadow:0 10px 28px rgba(0,0,0,.35)}
+  background:var(--glass);font-weight:600;cursor:pointer;color:var(--text);transition:.2s}
 
+/* Primary buttons — POP upgrade */
+.btn.primary,
+button.primary {
+  background: linear-gradient(135deg, var(--accentA), var(--accentB));
+  color: #0a0f20; /* contrast text */
+  border: 1px solid transparent;
+  box-shadow:
+    0 12px 30px rgba(103,232,249,.35),
+    0 14px 36px rgba(167,139,250,.25),
+    var(--glow);
+  transition: transform .15s ease, box-shadow .15s ease, filter .15s ease;
+}
+.btn.primary:hover,
+button.primary:hover {
+  transform: translateY(-2px);
+  box-shadow:
+    0 16px 40px rgba(103,232,249,.45),
+    0 18px 48px rgba(167,139,250,.35),
+    0 0 0 2px rgba(255,255,255,.06) inset,
+    var(--glow);
+  filter: saturate(1.05);
+}
+.btn.primary:active,
+button.primary:active {
+  transform: translateY(0);
+  filter: brightness(.98);
+}
+.btn.primary:focus-visible,
+button.primary:focus-visible {
+  outline: none;
+  box-shadow:
+    0 0 0 3px rgba(255,255,255,.12),
+    0 0 0 6px rgba(103,232,249,.28),
+    0 0 0 9px rgba(167,139,250,.20);
+}
+
+/* Cards, exam, and list items */
 .examCard{background:var(--glass);border:1px solid var(--stroke);border-radius:var(--radius);padding:16px;margin:10px 0}
 .stage{background:var(--glass);border:1px solid var(--stroke);border-radius:18px;padding:18px;display:grid;grid-template-columns:1.1fr .9fr;gap:16px}
 .examTitle{font-weight:700;font-size:22px;margin:0 0 6px}
@@ -58,7 +98,7 @@ canvas#fx{position:fixed;inset:0;z-index:-1;opacity:.35;pointer-events:none}
 .choices{display:grid;gap:10px}
 .choices button{padding:12px 14px;border-radius:12px;border:1px solid var(--stroke);background:rgba(255,255,255,.04);color:var(--text);text-align:left;font-weight:600;cursor:pointer}
 .choices button:hover{background:rgba(255,255,255,.08)}
-.progBar{height:10px;background:rgba(255,255,255,.12);border-radius:999px;overflow:hidden}
+.progBar{height:10px;background:rgba(255,255,255,.16);border-radius:999px;overflow:hidden}
 .progFill{height:100%;width:0%;background:linear-gradient(90deg,var(--accentA),var(--accentB));transition:width .35s ease}
 
 footer{border-top:1px solid var(--stroke);color:var(--muted);padding:28px 0 50px;text-align:center}
@@ -68,11 +108,8 @@ footer{border-top:1px solid var(--stroke);color:var(--muted);padding:28px 0 50px
   .stage{grid-template-columns:1fr}
 }
 
-/* --- Compatibility with the diagnostic renderer --- */
+/* Compatibility with diagnostic renderer */
 .panel{background:var(--glass);border:1px solid var(--stroke);border-radius:var(--radius);padding:16px;margin:10px 0;box-shadow:var(--shadow)}
-.primary{border:1px solid var(--stroke);background:linear-gradient(135deg, rgba(103,232,249,.18), rgba(167,139,250,.18));color:var(--text);
-  padding:12px 16px;border-radius:14px;font-weight:600;cursor:pointer;box-shadow:var(--glow)}
-.primary:hover{transform:translateY(-1px)}
 .item-list{padding-left:20px}
 .item{margin:12px 0}
 .choice{display:block;margin:6px 0;cursor:pointer}
