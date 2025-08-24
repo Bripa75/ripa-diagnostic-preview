@@ -130,8 +130,13 @@ function el(tag, attrs={}, children=[]){
   const node = document.createElement(tag);
   Object.entries(attrs).forEach(([k,v])=>{
     if (k==="class") node.className = v;
-    else if (k.startsWith("on") && typeof v==="function") node.addEventListener(k.substring(2), v);
-    else node.setAttribute(k,v);
+    else if (k.startsWith("on") && typeof v==="function") {
+      // FIX: normalize event to lowercase so onClick / onCLICK work
+      const evt = k.substring(2).toLowerCase();
+      node.addEventListener(evt, v);
+    } else {
+      node.setAttribute(k,v);
+    }
   });
   (Array.isArray(children)?children:[children]).forEach(c=> node.append(c instanceof Node ? c : document.createTextNode(String(c))));
   return node;
@@ -170,6 +175,7 @@ function renderCurrent(container){
 
   const choiceWrap = el("div",{class:"choices"});
   (item.choices||[]).forEach(c=>{
+    // NOTE: using onClick; binder lowercases to 'click'
     const btn = el("button",{class:"btn", onClick: ()=>answer(c)}, c);
     choiceWrap.append(btn);
   });
@@ -311,3 +317,4 @@ export function boot(){
     renderCurrent(mount);
   });
 }
+
