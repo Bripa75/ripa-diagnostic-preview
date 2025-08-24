@@ -1,81 +1,278 @@
-// bank.js — question generators + tags + utils
+// bank.js
+// Minimal-but-working sample bank to prove the generator + blueprint.
+// Expand by adding more items/passages with the same schema.
 
-(function(){
-  const STD = {
-    M: {
-      G2_OA:'NY-2.OA.*', G3_NBT:'NY-3.NBT.*', G3_NF:'NY-3.NF.*',
-      G4_MD:'NY-4.MD.*',  G4_NF:'NY-4.NF.*',
-      G5_NBT:'NY-5.NBT.*', G6_RP:'NY-6.RP.*', G6_EE:'NY-6.EE.*',
-      G7_NS:'NY-7.NS.*', G7_G:'NY-7.G.*', G8_F:'NY-8.F.*', G8_G:'NY-8.G.*'
-    },
-    E: { RL:'NY-ELA.RL.*', RI:'NY-ELA.RI.*', L:'NY-ELA.L.*' }
-  };
+export const STRANDS = {
+  MATH: ["NO", "FR", "ALG", "GEOM", "MD"], // Numbers&Opr, Fractions/Ratios, Algebraic Thinking/EE, Geometry, Measurement&Data/Stats
+  ELA_PASSAGE_TYPES: ["RL", "RI"], // Reading Literature / Reading Informational
+  ELA_LANG: ["LANG"], // Language/Grammar
+  ELA_WRITE: ["W"]   // Writing
+};
 
-  // Small helpers
-  const within = (min,max)=> Math.floor(Math.random()*(max-min+1))+min;
-  const pick = arr => arr[Math.floor(Math.random()*arr.length)];
-  function shuffle(arr){ return arr.map(v=>[Math.random(),v]).sort((a,b)=>a[0]-b[0]).map(x=>x[1]); }
-  function choiceSet(correct, wrongs){
-    const opts = shuffle([correct, ...wrongs]).slice(0,4);
-    return opts.length<4 ? shuffle([...opts, ...wrongs].slice(0,4)) : opts;
+// Item forms to help vary structure
+export const FORMS = {
+  SINGLE: "single",      // 1 correct choice
+  MULTI: "multi",        // 2–3 correct choices
+  NUMERIC: "numeric",    // number entry
+  SHORT: "short"         // short justification (1–2 sentences)
+};
+
+// Difficulty bands
+export const DIFF = { CORE: "core", ON: "on", STRETCH: "stretch" };
+
+// --- Math items --------------------------------------------------------------
+// Each item: {id, grade_min, grade_max, strand, form, diff, stem, choices?, answer, rubric?}
+export const MATH_ITEMS = [
+  // Numbers & Operations (NO)
+  {
+    id: "NO-3-001",
+    grade_min: 3, grade_max: 3,
+    strand: "NO", form: FORMS.SINGLE, diff: DIFF.CORE,
+    stem: "What is 427 rounded to the nearest ten?",
+    choices: ["420", "430", "400", "500"],
+    answer: "430"
+  },
+  {
+    id: "NO-4-002",
+    grade_min: 4, grade_max: 4,
+    strand: "NO", form: FORMS.NUMERIC, diff: DIFF.ON,
+    stem: "Compute 3,406 − 1,879.",
+    answer: "1527"
+  },
+  // Fractions/Ratios (FR)
+  {
+    id: "FR-4-003",
+    grade_min: 4, grade_max: 4,
+    strand: "FR", form: FORMS.SINGLE, diff: DIFF.CORE,
+    stem: "Which fraction is equivalent to 1/2?",
+    choices: ["2/6", "2/4", "3/8", "4/10"],
+    answer: "2/4"
+  },
+  {
+    id: "FR-5-004",
+    grade_min: 5, grade_max: 5,
+    strand: "FR", form: FORMS.NUMERIC, diff: DIFF.ON,
+    stem: "Compute: 2/3 + 1/6 = ?",
+    answer: "5/6"
+  },
+  {
+    id: "FR-6-005",
+    grade_min: 6, grade_max: 6,
+    strand: "FR", form: FORMS.NUMERIC, diff: DIFF.ON,
+    stem: "A car travels 156 miles in 3 hours. What is the unit rate (mph)?",
+    answer: "52"
+  },
+  // Algebraic Thinking / Expressions & Equations (ALG)
+  {
+    id: "ALG-6-006",
+    grade_min: 6, grade_max: 6,
+    strand: "ALG", form: FORMS.NUMERIC, diff: DIFF.CORE,
+    stem: "Solve: 3x + 9 = 24. What is x?",
+    answer: "5"
+  },
+  {
+    id: "ALG-7-007",
+    grade_min: 7, grade_max: 7,
+    strand: "ALG", form: FORMS.SINGLE, diff: DIFF.ON,
+    stem: "Which expression is equivalent to 4(2x − 5) + 3x?",
+    choices: ["8x − 20 + 3x", "8x − 5 + 3x", "8x − 20 + 3", "8 − 20x + 3x"],
+    answer: "8x − 20 + 3x"
+  },
+  {
+    id: "ALG-8-008",
+    grade_min: 8, grade_max: 8,
+    strand: "ALG", form: FORMS.SHORT, diff: DIFF.STRETCH,
+    stem: "Solve for y in the system: y = 2x + 1 and y = −x + 7. Show your work briefly.",
+    rubric: { max: 2, note: "1 pt correct solution (x=2, y=5); 1 pt brief reasoning." },
+    answer: "x=2,y=5"
+  },
+  // Geometry (GEOM)
+  {
+    id: "GEOM-4-009",
+    grade_min: 4, grade_max: 4,
+    strand: "GEOM", form: FORMS.SINGLE, diff: DIFF.CORE,
+    stem: "Which triangle has one 90° angle?",
+    choices: ["Acute", "Obtuse", "Right", "Equilateral"],
+    answer: "Right"
+  },
+  {
+    id: "GEOM-6-010",
+    grade_min: 6, grade_max: 6,
+    strand: "GEOM", form: FORMS.NUMERIC, diff: DIFF.ON,
+    stem: "Find the area of a right triangle with legs 6 cm and 9 cm.",
+    answer: "27"
+  },
+  {
+    id: "GEOM-8-011",
+    grade_min: 8, grade_max: 8,
+    strand: "GEOM", form: FORMS.NUMERIC, diff: DIFF.STRETCH,
+    stem: "The legs of a right triangle are 5 and 12. What is the hypotenuse length?",
+    answer: "13"
+  },
+  // Measurement & Data / Statistics (MD)
+  {
+    id: "MD-3-012",
+    grade_min: 3, grade_max: 3,
+    strand: "MD", form: FORMS.SINGLE, diff: DIFF.CORE,
+    stem: "Which measure describes the amount of space inside a shape?",
+    choices: ["Perimeter", "Area", "Angle", "Line segment"],
+    answer: "Area"
+  },
+  {
+    id: "MD-5-013",
+    grade_min: 5, grade_max: 5,
+    strand: "MD", form: FORMS.NUMERIC, diff: DIFF.ON,
+    stem: "Volume of a 3×4×5 rectangular prism (cubic units)?",
+    answer: "60"
+  },
+  {
+    id: "MD-6-014",
+    grade_min: 6, grade_max: 6,
+    strand: "MD", form: FORMS.NUMERIC, diff: DIFF.ON,
+    stem: "The data set has values 2, 4, 4, 7, 9. What is the median?",
+    answer: "4"
   }
+];
 
-  // ======== Math generators (each returns {t,a[],c,tag,std,lvl}) ========
-  function g2_add(){ const a=within(1,10), b=within(1,10), c=String(a+b);
-    return {t:`What is ${a}+${b}?`, a:choiceSet(c,[a+b+1,a+b-1,a+b+2].map(String)), c, tag:'arithmetic', std:STD.M.G2_OA, lvl:2.3}; }
-  function g3_place(){ const th=within(1,9), h=within(0,9), t=within(0,9), o=within(0,9);
-    const num=th*1000+h*100+t*10+o; const value=[['thousands',th,1000],['hundreds',h,100],['tens',t,10],['ones',o,1]][within(0,3)];
-    const c=String(value[1]*value[2]); return {t:`Value of the ${value[0]} digit in ${num}?`, a:choiceSet(c,[value[2],value[1],value[1]*10].map(String)), c, tag:'place-value', std:STD.M.G3_NBT, lvl:3.4}; }
-  function g3_frac_equiv(){ const base=[[1,2],[2,3],[3,4]][within(0,2)], k=within(2,4);
-    const c=`${base[0]*k}/${base[1]*k}`; return {t:`Which fraction is equivalent to ${base[0]}/${base[1]}?`, a:choiceSet(c,[`${base[0]}/${base[1]+1}`,`${base[0]+1}/${base[1]}`,`${base[0]*k}/${base[1]*k+1}`]), c, tag:'fractions', std:STD.M.G3_NF, lvl:3.8}; }
-  function g4_area(){ const w=within(3,12), h=within(3,12); const c=String(w*h);
-    return {t:`Area of a rectangle ${w}×${h}?`, a:choiceSet(c,[w+h,w*h+2,w*h-2].map(String)), c, tag:'geometry', std:STD.M.G4_MD, lvl:4.4}; }
-  function g4_add_like_den(){ const den=pick([4,6,8,10,12]); const a1=within(1,den-1), a2=within(1,den-1);
-    const num=a1+a2, c=`${num}/${den}`; return {t:`${a1}/${den} + ${a2}/${den} = ?`, a:choiceSet(c,[`${a1}/${den}`,`${a2}/${den}`,`${Math.abs(a1-a2)}/${den}`]), c, tag:'fractions', std:STD.M.G4_NF, lvl:4.7}; }
-  function g5_dec_compare(){ const a=(within(10,99)/100).toFixed(2), b=(within(10,99)/100).toFixed(2); const bigger=parseFloat(a)>parseFloat(b)?a:b;
-    return {t:`Which is greater? ${a} or ${b}`, a:choiceSet(bigger,[(parseFloat(bigger)-0.01).toFixed(2),'Equal',(parseFloat(bigger)+0.01).toFixed(2)]), c:bigger, tag:'decimals', std:STD.M.G5_NBT, lvl:5.0}; }
-  function g6_percent(){ const base=[40,50,60,80,120][within(0,4)], pct=[10,15,20,25,30][within(0,4)];
-    const c=String(Math.round(base*pct/100)); return {t:`${pct}% of ${base} = ?`, a:choiceSet(c,[Math.round(base*(pct+5)/100),Math.round(base*(pct-5)/100),Math.round(base*pct/100)+2].map(String)), c, tag:'percent', std:STD.M.G6_RP, lvl:6.0}; }
-  function g6_one_step(){ const x=within(2,12), b=within(2,10); const c=String(x);
-    return {t:`Solve x: x + ${b} = ${x+b}`, a:choiceSet(c,[x+1,x-1,b,x+b].map(String)), c, tag:'equations', std:STD.M.G6_EE, lvl:6.4}; }
-  function g7_ints(){ const a=within(-9,9), b=within(-9,9), c=String(a+b);
-    return {t:`Compute: ${a} + (${b})`, a:choiceSet(c,[a-b,-a+b,a+b+1].map(String)), c, tag:'integers', std:STD.M.G7_NS, lvl:6.8}; }
-  function g7_triangle(){ const a1=within(35,85), a2=within(35,85); let cVal=180-a1-a2; if(cVal<=10)cVal+=20;
-    return {t:`Triangle with angles ${a1}° and ${a2}°. Third angle?`, a:choiceSet(String(cVal),[cVal+10,cVal-10,a1].map(String)), c:String(cVal), tag:'angles', std:STD.M.G7_G, lvl:7.0}; }
-  function g8_slope(){ const x1=within(0,6), y1=within(0,10), x2=x1+within(1,6), y2=y1+within(-5,5);
-    const c=((y2-y1)/(x2-x1)).toFixed(2); return {t:`Slope between (${x1},${y1}) and (${x2},${y2})?`, a:choiceSet(c,[((y2-y1)/(x2-x1)+0.5).toFixed(2),((y2-y1)/(x2-x1)-0.5).toFixed(2),((y2+y1)/(x2-x1)).toFixed(2)]), c, tag:'functions', std:STD.M.G8_F, lvl:8.0}; }
+// --- ELA passages ------------------------------------------------------------
+// Each passage: {id, grade_band:[min,max], type:'RL'|'RI', text, questions:[{id, stem, choices, answer, standard}]}
+export const PASSAGES = [
+  {
+    id: "RL-4A",
+    grade_band: [4,5],
+    type: "RL",
+    text:
+`Lena gripped the rope as the ferry rocked. The river mist curled around the deck like breath on a cold morning. 
+She watched the far bank—a new town, a new school—creep closer. 
+When the captain blew the horn, Lena jumped but smiled; the sound felt like a starting bell.`,
+    questions: [
+      { id:"RL-4A-Q1", stem:"What is the main feeling Lena has about the move?", choices:["Angry","Excited but nervous","Bored","Confused"], answer:"Excited but nervous", standard:"RL4.2" },
+      { id:"RL-4A-Q2", stem:"Which detail best supports your answer?", choices:[
+        "She gripped the rope.", "The mist curled around the deck.", 
+        "She watched the far bank creep closer.", "She jumped but smiled at the horn."
+      ], answer:"She jumped but smiled at the horn.", standard:"RL4.1" },
+      { id:"RL-4A-Q3", stem:"What does the horn symbolize in the passage?", choices:["Danger","Anger","A beginning","An ending"], answer:"A beginning", standard:"RL4.4" },
+      { id:"RL-4A-Q4", stem:"Which sentence shows setting most clearly?", choices:[
+        "Lena gripped the rope.", "The river mist curled around the deck.", 
+        "She watched the far bank creep closer.", "The captain blew the horn."
+      ], answer:"The river mist curled around the deck.", standard:"RL4.3" },
+      { id:"RL-4A-Q5", stem:"What point of view is used?", choices:["First-person","Second-person","Third-person limited","Third-person omniscient"], answer:"Third-person limited", standard:"RL4.6" },
+      { id:"RL-4A-Q6", stem:"Which word best describes Lena?", choices:["Timid","Hopeful","Shy","Careless"], answer:"Hopeful", standard:"RL4.3" }
+    ]
+  },
+  {
+    id: "RI-5B",
+    grade_band: [5,6],
+    type: "RI",
+    text:
+`Bees communicate using a “waggle dance.” 
+By shaking their bodies at specific angles relative to the sun, they tell other bees the direction and distance to flowers. 
+This system allows a hive to find food efficiently—even when blossoms are miles away.`,
+    questions: [
+      { id:"RI-5B-Q1", stem:"What is the main idea of the passage?", choices:[
+        "Bees sting to protect themselves.", "Bees use dance to share food locations.", 
+        "Sunlight helps bees fly faster.", "Flowers are always near the hive."
+      ], answer:"Bees use dance to share food locations.", standard:"RI5.2" },
+      { id:"RI-5B-Q2", stem:"What does 'relative to the sun' help bees communicate?", choices:[
+        "Temperature", "Direction", "Speed", "Color"
+      ], answer:"Direction", standard:"RI5.4" },
+      { id:"RI-5B-Q3", stem:"Which evidence supports the main idea best?", choices:[
+        "Bees communicate using a 'waggle dance.'", 
+        "They shake their bodies at specific angles.",
+        "The system lets the hive find food efficiently.",
+        "Blossoms are miles away."
+      ], answer:"The system lets the hive find food efficiently.", standard:"RI5.8" },
+      { id:"RI-5B-Q4", stem:"Which text structure is used most?", choices:[
+        "Sequence", "Compare/contrast", "Cause/effect", "Problem/solution"
+      ], answer:"Cause/effect", standard:"RI5.5" },
+      { id:"RI-5B-Q5", stem:"What is the best summary?", choices:[
+        "Bees dance for fun.", 
+        "A waggle dance uses angles to show where food is, helping the hive find flowers.",
+        "Flowers are miles away from hives.", 
+        "Angles are math."
+      ], answer:"A waggle dance uses angles to show where food is, helping the hive find flowers.", standard:"RI5.2" },
+      { id:"RI-5B-Q6", stem:"Which feature would best support this text?", choices:[
+        "A timeline", "A map of bee migrations", "A diagram showing dance angles", "A poem about bees"
+      ], answer:"A diagram showing dance angles", standard:"RI5.7" }
+    ]
+  }
+];
 
-  const MATH_GENS = [g2_add,g3_place,g3_frac_equiv,g4_area,g4_add_like_den,g5_dec_compare,g6_percent,g6_one_step,g7_ints,g7_triangle,g8_slope];
+// --- ELA Language (grammar) items -------------------------------------------
+export const LANG_ITEMS = [
+  {
+    id:"LANG-5-001",
+    grade_min:5, grade_max:6,
+    strand:"LANG", form: FORMS.SINGLE, diff: DIFF.CORE,
+    stem:"Choose the correctly punctuated sentence.",
+    choices:[
+      "I brought pencils, paper and, snacks.",
+      "I brought pencils, paper, and snacks.",
+      "I brought, pencils, paper and snacks.",
+      "I brought pencils paper, and snacks."
+    ],
+    answer:"I brought pencils, paper, and snacks."
+  },
+  {
+    id:"LANG-6-002",
+    grade_min:6, grade_max:6,
+    strand:"LANG", form: FORMS.SINGLE, diff: DIFF.ON,
+    stem:"Select the sentence with a nonrestrictive clause correctly set off by commas.",
+    choices:[
+      "My brother who plays guitar won.",
+      "My brother, who plays guitar won.",
+      "My brother, who plays guitar, won.",
+      "My brother who, plays guitar, won."
+    ],
+    answer:"My brother, who plays guitar, won."
+  },
+  {
+    id:"LANG-7-003",
+    grade_min:7, grade_max:7,
+    strand:"LANG", form: FORMS.SINGLE, diff: DIFF.ON,
+    stem:"Which sentence contains a misplaced modifier?",
+    choices:[
+      "Running down the hall, the bell startled Maya.",
+      "Running down the hall, Maya heard the bell.",
+      "While Maya ran, the bell rang.",
+      "Maya, running down the hall, heard the bell."
+    ],
+    answer:"Running down the hall, the bell startled Maya."
+  }
+];
 
-  // ======== ELA generators ========
-  const PASSAGES = [
-    { text:`The clouds gathered and the wind howled. Soon, droplets tapped the window.`,
-      q:{t:'What is most likely happening?', c:'A storm is starting', w:['A sunny day','A parade','A quiet night'], std:STD.E.RI}, lvl:4.6 },
-    { text:`Many plants bend toward light. Gardeners rotate pots so stems stay straight.`,
-      q:{t:'What is the main idea?', c:'Plants grow toward light', w:['Plants hate water','Pots are heavy','Gardens are loud'], std:STD.E.RI}, lvl:4.8 },
-    { text:`Maya practiced every day before the recital. When the curtain rose, she smiled with confidence.`,
-      q:{t:'What can you infer?', c:'Maya felt ready to perform', w:['Maya forgot her part','Maya was late','Maya left early'], std:STD.E.RL}, lvl:5.2 }
-  ];
-  const SYN = [['eager','excited'],['scarce','rare'],['plentiful','abundant'],['assist','help'],['silent','quiet'],['purchase','buy']];
-  const ANT = [['scarce','plentiful'],['difficult','easy'],['ancient','modern'],['expand','shrink']];
-  function e_passage(){ const p=pick(PASSAGES); const d=p.q;
-    return {t:`Read: “${p.text}” ${d.t}`, a:choiceSet(d.c,d.w), c:d.c, tag:'reading', std:d.std, lvl:p.lvl}; }
-  function e_syn(){ const [w,s]=pick(SYN); const wrongs=shuffle(SYN.map(x=>x[1]).filter(x=>x!==s)).slice(0,3);
-    return {t:`Choose a synonym for “${w}”.`, a:choiceSet(s,wrongs), c:s, tag:'vocab', std:STD.E.L, lvl:4.2}; }
-  function e_ant(){ const [w,a]=pick(ANT); const wrongs=shuffle(ANT.map(x=>x[1]).filter(x=>x!==a)).slice(0,3);
-    return {t:`Choose an antonym for “${w}”.`, a:choiceSet(a,wrongs), c:a, tag:'vocab', std:STD.E.L, lvl:4.8}; }
+// --- Writing prompts + rubric ------------------------------------------------
+export const WRITING_PROMPTS = [
+  {
+    id:"W-OP-5-6",
+    grade_band:[5,6],
+    type:"opinion",
+    prompt:"Do you agree or disagree that schools should start later in the morning? Use one reason from your own experience and one from the passages."
+  },
+  {
+    id:"W-INF-4-5",
+    grade_band:[4,5],
+    type:"informative",
+    prompt:"Explain how a signal helps a group work together (for example, bees, teams, or traffic). Use details from a passage."
+  },
+  {
+    id:"W-NAR-6-8",
+    grade_band:[6,8],
+    type:"narrative",
+    prompt:"Write the next scene after the passage, from the main character’s point of view. Include thoughts, actions, and a clear ending."
+  }
+];
 
-  const ELA_GENS = [e_passage,e_syn,e_ant];
-
-  window.BANK = {
-    MATH_GENS, ELA_GENS,
-    TAG_TO_STD: {
-      'arithmetic':'NY-2–3.OA.*','place-value':'NY-3.NBT.*','fractions':'NY-3–5.NF.*',
-      'geometry':'NY-4.MD.*','decimals':'NY-5.NBT.*','percent':'NY-6.RP.*','equations':'NY-6.EE.*',
-      'integers':'NY-6–7.NS.*','angles':'NY-7.G.*','functions':'NY-8.F.*',
-      'reading':'NY-ELA.RI/RL.*','vocab':'NY-ELA.L.*'
-    },
-    utils:{ within, pick, shuffle, choiceSet }
-  };
-})();
+// Simple 0–4 rubric with 3 traits (ideas, organization, language)
+export const WRITING_RUBRIC = {
+  traits: ["Ideas/Evidence","Organization","Language/Conventions"],
+  scale: [0,1,2,3,4],
+  descriptors: {
+    4: "Clear focus, relevant evidence, logical order; few errors.",
+    3: "Mostly clear focus, some evidence; minor errors.",
+    2: "Partially on topic; thin evidence; choppy order; noticeable errors.",
+    1: "Minimal or off-topic; little evidence; disorganized; frequent errors.",
+    0: "Blank or indecipherable."
+  }
+};
 
