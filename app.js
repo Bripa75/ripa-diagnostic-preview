@@ -1,63 +1,68 @@
-// app.js — Adaptive engine (20 Q total): 10 Math then 10 English.
-// Difficulty moves up on correct, down on incorrect. Grades 2–8.
-// Shows live progress, locks the test on completion, and renders a final report.
+// app.js — Adaptive 20-question path (10 Math → 10 English) for grades 2–8.
+// Uses the 200-question bank in bank.js. Difficulty moves up on correct / down on incorrect.
+// Rotates unseen items per grade across attempts (localStorage).
+// Ends automatically and shows a leveled Instant Report + Action Plan.
 
-import {
-  DIFF,
-  MATH_ITEMS, PASSAGES, LANG_ITEMS
-} from './bank.js';
+import { DIFF, MATH_ITEMS, PASSAGES, LANG_ITEMS } from './bank.js';
 
 /* ---------- Config ---------- */
-const TARGET = { math: 10, english: 10 };   // 20 total
+const TARGET = { math: 10, english: 10 }; // total 20 per student
+
+/* ---------- Seen-rotation (per grade & phase) ---------- */
+const SEEN_PREFIX = "ripa_seen_v1";
+function loadSeen(grade, phase){
+  try { return new Set(JSON.parse(localStorage.getItem(`${SEEN_PREFIX}_${grade}_${phase}`))||[]); }
+  catch { return new Set(); }
+}
+function addSeen(grade, phase, id){
+  const key = `${SEEN_PREFIX}_${grade}_${phase}`;
+  const cur = loadSeen(grade, phase);
+  cur.add(id);
+  localStorage.setItem(key, JSON.stringify([...cur]));
+}
 
 /* ---------- Helpers ---------- */
 const between = (n,a,b)=> n>=a && n<=b;
 const pickOne = (arr)=> arr[Math.floor(Math.random()*arr.length)];
 const pct = (c,t)=> t ? Math.round(100*c/t) : 0;
 
-function makeEnglishQuestionEnvelope(p, q, diffTag){
-  // Flatten passage + question to a single renderable item
+function flattenPassageQuestion(p, q, diffTag){
   return {
     id: `E-${p.id}-${q.id}`,
-    domain: p.type,             // RL or RI
-    diff: diffTag,              // 'core' | 'on' | 'stretch'
+    domain: p.type,     // RL or RI
+    diff: diffTag,
     stem: q.stem,
     choices: q.choices,
     answer: q.answer,
     context: p.text
   };
 }
+// Map question index to difficulty band
+function qIndexToDiff(i){ return i<=1 ? DIFF.CORE : i<=3 ? DIFF.ON : DIFF.STRETCH; }
 
-/* Map index→difficulty for passage questions (keeps you from editing the bank) */
-function qIndexToDiff(i){
-  // 0–1 core, 2–3 on, 4–5 stretch (safe for 4–6 Q passages)
-  if (i <= 1) return DIFF.CORE;
-  if (i <= 3) return DIFF.ON;
-  return DIFF.STRETCH;
-}
-
-/* Build grade-scoped pools */
+// Build grade-scoped pools
 function buildPools(grade){
-  // Math pools by difficulty
+  // Math by difficulty
   const mathByDiff = {
     [DIFF.CORE]:    MATH_ITEMS.filter(it => it.diff===DIFF.CORE    && between(grade, it.grade_min, it.grade_max)),
     [DIFF.ON]:      MATH_ITEMS.filter(it => it.diff===DIFF.ON      && between(grade, it.grade_min, it.grade_max)),
     [DIFF.STRETCH]: MATH_ITEMS.filter(it => it.diff===DIFF.STRETCH && between(grade, it.grade_min, it.grade_max)),
   };
 
-  // English: flatten RL/RI passage questions to items + include Language items
+  // English pool: RL/RI flattened + Language
   const englishPool = { [DIFF.CORE]:[], [DIFF.ON]:[], [DIFF.STRETCH]:[] };
+
   PASSAGES.forEach(p=>{
     if (!between(grade, p.grade_band[0], p.grade_band[1])) return;
-    (p.questions || []).forEach((q, idx)=>{
+    (p.questions||[]).forEach((q, idx)=>{
       const diff = qIndexToDiff(idx);
-      englishPool[diff].push(makeEnglishQuestionEnvelope(p, q, diff));
+      englishPool[diff].push(flattenPassageQuestion(p, q, diff));
     });
   });
-  // Language questions serve as additional English items
+
   LANG_ITEMS.forEach(it=>{
     if (!between(grade, it.grade_min, it.grade_max)) return;
-    englishPool[it.diff]?.push({
+    englishPool[it.diff].push({
       id:`E-LANG-${it.id}`,
       domain:"LANG",
       diff:it.diff,
@@ -71,24 +76,28 @@ function buildPools(grade){
   return { mathByDiff, englishPool };
 }
 
-/* ---------- Adaptive picker ---------- */
-function takeFrom(poolMap, wantDiff, usedIds){
-  // try want → adjacent → any
+/* Difficulty-aware, rotation-aware picker */
+function takeFrom(poolMap, wantDiff, usedIds, seenSet){
   const order = wantDiff===DIFF.CORE
     ? [DIFF.CORE, DIFF.ON, DIFF.STRETCH]
     : wantDiff===DIFF.ON
       ? [DIFF.ON, DIFF.CORE, DIFF.STRETCH]
       : [DIFF.STRETCH, DIFF.ON, DIFF.CORE];
 
+  // Try avoiding both in-test and seen items first
+  for (const d of order){
+    const pool = poolMap[d].filter(x => !usedIds.has(x.id) && !seenSet.has(x.id));
+    if (pool.length) return { item: pickOne(pool), usedDiff: d, avoidedSeen: true };
+  }
+  // Then allow seen items if we must
   for (const d of order){
     const pool = poolMap[d].filter(x => !usedIds.has(x.id));
-    if (pool.length) return { item: pickOne(pool), usedDiff: d };
+    if (pool.length) return { item: pickOne(pool), usedDiff: d, avoidedSeen: false };
   }
-
-  // As a last resort, search *any* difficulty
+  // Finally, any remaining
   const any = Object.values(poolMap).flat().filter(x=>!usedIds.has(x.id));
-  if (any.length) return { item: pickOne(any), usedDiff: DIFF.ON };
-  return { item: null, usedDiff: wantDiff };
+  if (any.length) return { item: pickOne(any), usedDiff: DIFF.ON, avoidedSeen: false };
+  return { item: null, usedDiff: wantDiff, avoidedSeen: false };
 }
 
 /* ---------- Runtime State ---------- */
@@ -98,16 +107,14 @@ function initState(grade){
   const pools = buildPools(grade);
   state = {
     grade,
-    phase: "math",                  // "math" then "english"
+    phase: "math",                       // then "english"
     targetInPhase: TARGET.math,
     answeredInPhase: 0,
     totalTarget: TARGET.math + TARGET.english,
 
-    // difficulty cursors
     mathDiff: DIFF.ON,
     engDiff: DIFF.ON,
 
-    // scoring & exposure
     usedIds: new Set(),
     correct: 0,
     total: 0,
@@ -118,7 +125,7 @@ function initState(grade){
   };
 }
 
-/* ---------- Rendering ---------- */
+/* ---------- DOM helpers ---------- */
 function el(tag, attrs={}, children=[]){
   const node = document.createElement(tag);
   Object.entries(attrs).forEach(([k,v])=>{
@@ -129,7 +136,6 @@ function el(tag, attrs={}, children=[]){
   (Array.isArray(children)?children:[children]).forEach(c=> node.append(c instanceof Node ? c : document.createTextNode(String(c))));
   return node;
 }
-
 function setProgress(){
   const pf = document.getElementById("progFill");
   if (!pf || !state) return;
@@ -137,97 +143,70 @@ function setProgress(){
   pf.style.width = `${Math.min(100, Math.round(ratio*100))}%`;
 }
 
-/* Draw current question */
+/* ---------- Render next ---------- */
 function renderCurrent(container){
   container.innerHTML = "";
 
   if (!state) return;
-
   const domainLabel = state.phase === "math" ? "Math" : "English";
   container.append(el("div",{class:"label"}, `${domainLabel} Question ${state.answeredInPhase+1} of ${state.targetInPhase}`));
 
-  // pick next item by adaptive diff
-  let picked;
-  if (state.phase==="math"){
-    picked = takeFrom(state.pools.mathByDiff, state.mathDiff, state.usedIds);
-  } else {
-    picked = takeFrom(state.pools.englishPool, state.engDiff, state.usedIds);
-  }
-  const { item } = picked;
+  const seen = loadSeen(state.grade, state.phase);
+  const picked = state.phase==="math"
+    ? takeFrom(state.pools.mathByDiff, state.mathDiff, state.usedIds, seen)
+    : takeFrom(state.pools.englishPool, state.engDiff, state.usedIds, seen);
 
-  if (!item){
-    // If no item available (extreme edge), advance phase or finish
-    advancePhaseOrFinish(container);
-    return;
-  }
+  const item = picked.item;
+  if (!item){ advancePhaseOrFinish(container); return; }
 
   state.current = item;
   state.usedIds.add(item.id);
+  addSeen(state.grade, state.phase, item.id); // persist rotation
 
-  // Context (for reading questions)
-  if (item.context){
-    container.append(el("div",{class:"passage"}, item.context));
-  }
+  if (item.context){ container.append(el("div",{class:"passage"}, item.context)); }
 
-  // Stem + choices
   const li = el("div",{class:"item"});
   li.append(el("div",{class:"qtext"}, item.stem));
 
   const choiceWrap = el("div",{class:"choices"});
-  item.choices.forEach(c=>{
+  (item.choices||[]).forEach(c=>{
     const btn = el("button",{class:"btn", onClick: ()=>answer(c)}, c);
     choiceWrap.append(btn);
   });
   li.append(choiceWrap);
-
   container.append(li);
 }
 
-/* ---------- Answer handler (adaptive) ---------- */
+/* ---------- Answer (adaptive) ---------- */
 function answer(chosen){
   if (!state || !state.current) return;
-
   const item = state.current;
   const isCorrect = String(chosen) === String(item.answer);
   state.total++;
   if (isCorrect) state.correct++;
 
-  // strand bookkeeping
   if (state.phase==="math"){
-    const strand = item.strand || (MATH_ITEMS.find(x=>x.id===item.id)?.strand) || "NO";
-    state.strands[strand][1]++;          // total
-    if (isCorrect) state.strands[strand][0]++; // correct
-
-    // adapt difficulty for next math question
+    const strand = item.strand || "NO";
+    state.strands[strand][1]++; if (isCorrect) state.strands[strand][0]++;
+    // adapt next math difficulty
     state.mathDiff = isCorrect
       ? (state.mathDiff===DIFF.CORE ? DIFF.ON : DIFF.STRETCH)
       : (state.mathDiff===DIFF.STRETCH ? DIFF.ON : DIFF.CORE);
-
-    state.answeredInPhase++;
   } else {
-    // English: domain is RL/RI/LANG already on the item
     const k = item.domain || "RL";
-    state.strands[k][1]++;
-    if (isCorrect) state.strands[k][0]++;
-
-    // adapt difficulty for next english question
+    state.strands[k][1]++; if (isCorrect) state.strands[k][0]++;
+    // adapt next english difficulty
     state.engDiff = isCorrect
       ? (state.engDiff===DIFF.CORE ? DIFF.ON : DIFF.STRETCH)
       : (state.engDiff===DIFF.STRETCH ? DIFF.ON : DIFF.CORE);
-
-    state.answeredInPhase++;
   }
 
-  // progress UI
+  state.answeredInPhase++;
   setProgress();
 
-  // advance or finish
   const container = document.getElementById("mount");
-  if (state.answeredInPhase >= state.targetInPhase){
-    advancePhaseOrFinish(container);
-  } else {
-    renderCurrent(container);
-  }
+  if (state.answeredInPhase >= state.targetInPhase) advancePhaseOrFinish(container);
+  else renderCurrent(container);
 }
 
 function advancePhaseOrFinish(container){
@@ -236,20 +215,18 @@ function advancePhaseOrFinish(container){
     state.targetInPhase = TARGET.english;
     state.answeredInPhase = 0;
     renderCurrent(container);
-    return;
+  } else {
+    finishTest();
   }
-  // finished both phases
-  finishTest();
 }
 
-/* ---------- Report ---------- */
+/* ---------- Reporting ---------- */
 function levelForPct(p){
   if (p >= 85) return {level:4, label:"Exceeds Grade Level"};
   if (p >= 70) return {level:3, label:"On Grade Level"};
   if (p >= 50) return {level:2, label:"Approaching Grade Level"};
   return {level:1, label:"Below Grade Level"};
 }
-
 function buildActionPlan(strandScores){
   const keysMath = ["NO","FR","ALG","GEOM","MD"];
   const keysEng  = ["RL","RI","LANG"].filter(k=> (strandScores[k]?.[1]||0)>0);
@@ -259,35 +236,29 @@ function buildActionPlan(strandScores){
     .sort((a,b)=> a.p - b.p)
     .slice(0,2);
 
-  const suggestions = {
-    NO: "Fluency with multi-digit addition/subtraction; daily 10-minute computation warm-up.",
-    FR: "Fraction models & equivalence; use number lines/area models before algorithms.",
+  const tips = {
+    NO: "Fluency with multi-digit add/sub; 10-minute daily warm-ups.",
+    FR: "Equivalence with models; number lines & area models, then procedures.",
     ALG:"Translate words→expressions; 1–2 step equations using inverse operations.",
-    GEOM:"Area/perimeter and triangle/angle relationships; sketch and label steps.",
+    GEOM:"Area/perimeter & right-triangle relationships; sketch and label.",
     MD: "Graphs, units, & volume; read tables/plots then solve multi-step problems.",
     RL: "Theme & inference from character actions; cite two pieces of evidence.",
-    RI: "Main idea, text structure, vocab-in-context; annotate headings & captions.",
+    RI: "Main idea, text structure, vocab-in-context; annotate headings/captions.",
     LANG:"Commas in a series/nonrestrictives; daily 3-minute edit drills."
   };
 
-  const fmt = (x)=> `${x.k}: ${x.p}% — ${suggestions[x.k]}`;
-  return {
-    math: rank(keysMath).map(fmt),
-    english: rank(keysEng).map(fmt)
-  };
+  const fmt = (x)=> `${x.k}: ${x.p}% — ${tips[x.k]}`;
+  return { math: rank(keysMath).map(fmt), english: rank(keysEng).map(fmt) };
 }
 
 function finishTest(){
-  // lock UI
   const mount = document.getElementById("mount");
   mount.innerHTML = "";
-  const stopNote = el("p",{class:"examMuted"},"Test complete. See Instant Report below.");
-  mount.append(stopNote);
+  mount.append(el("p",{class:"examMuted"},"Test complete. See Instant Report below."));
 
   const pf = document.getElementById("progFill");
   if (pf) pf.style.width = "100%";
 
-  // Compute domain totals from strand buckets
   const s = state.strands;
   const mathC = ["NO","FR","ALG","GEOM","MD"].reduce((sum,k)=>sum + (s[k]?.[0]||0), 0);
   const mathT = ["NO","FR","ALG","GEOM","MD"].reduce((sum,k)=>sum + (s[k]?.[1]||0), 0);
@@ -298,7 +269,6 @@ function finishTest(){
   const engPct  = pct(engC, engT);
   const mathLevel = levelForPct(mathPct);
   const engLevel  = levelForPct(engPct);
-
   const action = buildActionPlan(s);
 
   const report = document.getElementById("report");
@@ -321,7 +291,7 @@ function finishTest(){
       <ol style="margin:0 0 10px 18px">${action.math.map(x=>`<li>${x}</li>`).join("")}</ol>
       <div class="title" style="margin:10px 0 6px">English Focus</div>
       <ol style="margin:0 0 10px 18px">${action.english.map(x=>`<li>${x}</li>`).join("")}</ol>
-      <p class="examMuted">Structure: Mini-lesson (8–10m) → Guided (15m) → Independent (15m) → 2–3 Q exit ticket.</p>
+      <p class="examMuted">Structure: Mini-lesson (8–10m) → Guided (15m) → Independent (15m) → 2–3Q exit ticket.</p>
     </div>
   `;
 }
