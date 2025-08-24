@@ -1,228 +1,346 @@
-import { STRANDS, FORMS, DIFF, MATH_ITEMS, PASSAGES, LANG_ITEMS, WRITING_PROMPTS, WRITING_RUBRIC } from './bank.js';
+// app.js — Adaptive engine (20 Q total): 10 Math then 10 English.
+// Difficulty steps up on correct, down on incorrect. Works for grades 2–8.
+// Shows live progress, locks the test on completion, and renders a final report.
 
-const BLUEPRINT = {
-  math: { quota: { NO:4, FR:3, ALG:3, GEOM:3, MD:3 }, total:16 },
-  readingA: { type: "any", questions: 6 },
-  readingB: { type: "any", questions: 6 },
-  language: { total: 5 },
-  writing: { minutes: 10 }
-};
+import {
+  FORMS, DIFF,
+  MATH_ITEMS, PASSAGES, LANG_ITEMS
+} from './bank.js';
 
-const EXPOSURE_KEY = "ripa_exposure_v1";
-function getExposure(){ try{ return JSON.parse(localStorage.getItem(EXPOSURE_KEY)) || { NO:0, FR:0, ALG:0, GEOM:0, MD:0, LANG:0, RL:0, RI:0, W:0 }; }catch{return { NO:0, FR:0, ALG:0, GEOM:0, MD:0, LANG:0, RL:0, RI:0, W:0 };}}
-function bumpExposure(keys){ const e=getExposure(); keys.forEach(k=>e[k]=(e[k]||0)+1); localStorage.setItem(EXPOSURE_KEY, JSON.stringify(e)); }
+/* ---------- Config ---------- */
+const TARGET = { math: 10, english: 10 };   // 20 total
 
-function between(n,a,b){ return n>=a && n<=b; }
-function sample(arr,n){ const c=[...arr], out=[]; while(c.length && out.length<n){ out.push(c.splice(Math.floor(Math.random()*c.length),1)[0]); } return out; }
-function sortByExposureFirst(cands, key){ const exp=getExposure(); return [...cands].sort(()=> (exp[key]??0)-(exp[key]??0) || Math.random()-0.5); }
+/* ---------- Helpers ---------- */
+const between = (n,a,b)=> n>=a && n<=b;
+const pickOne = (arr)=> arr[Math.floor(Math.random()*arr.length)];
+const pct = (c,t)=> t ? Math.round(100*c/t) : 0;
 
-export function generateTest(grade){
-  const mathPicked=[];
-  for(const [strand,need] of Object.entries(BLUEPRINT.math.quota)){
-    const pool=MATH_ITEMS.filter(it=>it.strand===strand && between(grade,it.grade_min,it.grade_max));
-    if(!pool.length) continue;
-    const ordered=sortByExposureFirst(pool,strand);
-    mathPicked.push(...ordered.slice(0,need));
-  }
-  const exp=getExposure();
-  const types=["RL","RI"].sort((a,b)=> (exp[a]??0)-(exp[b]??0));
-  function pickPassage(type){
-    const t= type==="any"? types[0]: type;
-    const opts=PASSAGES.filter(p=>between(grade,p.grade_band[0],p.grade_band[1]) && p.type===t);
-    if(opts.length) return sample(opts,1)[0];
-    const any=PASSAGES.filter(p=>between(grade,p.grade_band[0],p.grade_band[1]));
-    return sample(any,1)[0];
-  }
-  const passageA=pickPassage(BLUEPRINT.readingA.type); bumpExposure([passageA.type]);
-  const passageB=pickPassage(BLUEPRINT.readingB.type); bumpExposure([passageB.type]);
-
-  const langPool=LANG_ITEMS.filter(it=>between(grade,it.grade_min,it.grade_max));
-  const languagePicked=sample(langPool, BLUEPRINT.language.total); bumpExposure(["LANG"]);
-
-  const wChoices=WRITING_PROMPTS.filter(w=>between(grade,w.grade_band[0],w.grade_band[1]));
-  const writing=sample(wChoices,1)[0]; bumpExposure(["W"]);
-
-  bumpExposure(Object.keys(BLUEPRINT.math.quota));
-
+function makeEnglishQuestionEnvelope(p, q, diffTag){
+  // Flatten passage + question to a single renderable item
   return {
-    meta:{grade, createdAt:new Date().toISOString()},
-    math: mathPicked,
-    passages: [
-      { role:"A", ...passageA, questions: sample(passageA.questions, BLUEPRINT.readingA.questions) },
-      { role:"B", ...passageB, questions: sample(passageB.questions, BLUEPRINT.readingB.questions) }
-    ],
-    language: languagePicked,
-    writing: { ...writing, minutes: BLUEPRINT.writing.minutes, rubric: WRITING_RUBRIC }
+    id: `E-${p.id}-${q.id}`,
+    domain: p.type,             // RL or RI
+    diff: diffTag,              // 'core' | 'on' | 'stretch'
+    stem: q.stem,
+    choices: q.choices,
+    answer: q.answer,
+    context: p.text
   };
 }
 
+/* Map index→difficulty for passage questions (keeps you from editing the bank) */
+function qIndexToDiff(i){
+  // 0–1 core, 2–3 on, 4–5 stretch (safe for 4–6 Q passages)
+  if (i <= 1) return DIFF.CORE;
+  if (i <= 3) return DIFF.ON;
+  return DIFF.STRETCH;
+}
+
+/* Build grade-scoped pools */
+function buildPools(grade){
+  // Math pools by difficulty
+  const mathByDiff = {
+    [DIFF.CORE]:  MATH_ITEMS.filter(it => it.diff===DIFF.CORE  && between(grade, it.grade_min, it.grade_max)),
+    [DIFF.ON]:    MATH_ITEMS.filter(it => it.diff===DIFF.ON    && between(grade, it.grade_min, it.grade_max)),
+    [DIFF.STRETCH]: MATH_ITEMS.filter(it => it.diff===DIFF.STRETCH && between(grade, it.grade_min, it.grade_max)),
+  };
+
+  // English: flatten RL/RI passage questions to items + include Language items
+  const englishPool = { [DIFF.CORE]:[], [DIFF.ON]:[], [DIFF.STRETCH]:[] };
+  PASSAGES.forEach(p=>{
+    if (!between(grade, p.grade_band[0], p.grade_band[1])) return;
+    (p.questions || []).forEach((q, idx)=>{
+      const diff = qIndexToDiff(idx);
+      englishPool[diff].push(makeEnglishQuestionEnvelope(p, q, diff));
+    });
+  });
+  // Language questions serve as additional English items (they already have a diff field)
+  LANG_ITEMS.forEach(it=>{
+    if (!between(grade, it.grade_min, it.grade_max)) return;
+    englishPool[it.diff]?.push({
+      id:`E-LANG-${it.id}`,
+      domain:"LANG",
+      diff:it.diff,
+      stem:it.stem,
+      choices:it.choices,
+      answer:it.answer,
+      context:null
+    });
+  });
+
+  // Fallbacks if a pool is thin: borrow from adjacent difficulties (done at pick time)
+  return { mathByDiff, englishPool };
+}
+
+/* ---------- Adaptive picker ---------- */
+function takeFrom(poolMap, wantDiff, usedIds){
+  // try want → adjacent → any
+  const order = wantDiff===DIFF.CORE
+    ? [DIFF.CORE, DIFF.ON, DIFF.STRETCH]
+    : wantDiff===DIFF.ON
+      ? [DIFF.ON, DIFF.CORE, DIFF.STRETCH]
+      : [DIFF.STRETCH, DIFF.ON, DIFF.CORE];
+
+  for (const d of order){
+    const pool = poolMap[d].filter(x => !usedIds.has(x.id));
+    if (pool.length) return { item: pickOne(pool), usedDiff: d };
+  }
+
+  // As a last resort, search *any* difficulty, even if not in order
+  const any = Object.values(poolMap).flat().filter(x=>!usedIds.has(x.id));
+  if (any.length) return { item: pickOne(any), usedDiff: DIFF.ON };
+  return { item: null, usedDiff: wantDiff };
+}
+
+/* ---------- Runtime State ---------- */
+let state = null;
+
+function initState(grade){
+  const pools = buildPools(grade);
+  state = {
+    grade,
+    step: 0,
+    phase: "math",                  // "math" then "english"
+    targetInPhase: TARGET.math,
+    answeredInPhase: 0,
+    totalTarget: TARGET.math + TARGET.english,
+
+    // difficulty cursors
+    mathDiff: DIFF.ON,
+    engDiff: DIFF.ON,
+
+    // scoring & exposure
+    usedIds: new Set(),
+    correct: 0,
+    total: 0,
+    strands: { NO:[0,0], FR:[0,0], ALG:[0,0], GEOM:[0,0], MD:[0,0], RL:[0,0], RI:[0,0], LANG:[0,0] },
+
+    pools
+  };
+}
+
+/* ---------- Rendering ---------- */
 function el(tag, attrs={}, children=[]){
-  const node=document.createElement(tag);
+  const node = document.createElement(tag);
   Object.entries(attrs).forEach(([k,v])=>{
-    if(k==="class") node.className=v;
-    else if(k.startsWith("on") && typeof v==="function") node.addEventListener(k.substring(2), v);
+    if (k==="class") node.className = v;
+    else if (k.startsWith("on") && typeof v==="function") node.addEventListener(k.substring(2), v);
     else node.setAttribute(k,v);
   });
-  (Array.isArray(children)?children:[children]).forEach(c=> node.append(c instanceof Node? c: document.createTextNode(String(c))));
+  (Array.isArray(children)?children:[children]).forEach(c=> node.append(c instanceof Node ? c : document.createTextNode(String(c))));
   return node;
 }
 
-export function mountTest(container, test){
+function setProgress(){
+  const pf = document.getElementById("progFill");
+  if (!pf || !state) return;
+  const ratio = state.total / state.totalTarget;
+  pf.style.width = `${Math.min(100, Math.round(ratio*100))}%`;
+}
+
+/* Draw current question */
+function renderCurrent(container){
   container.innerHTML = "";
 
-  container.append(el("h2",{class:"title"},`Baseline Diagnostic (Grade ${test.meta.grade})`));
+  if (!state) return;
 
-  // Math
-  container.append(el("h3",{class:"label"},"Math — 16 items"));
-  const mList = el("ol",{class:"item-list"});
-  test.math.forEach(it=>{
-    const li=el("li",{class:"item"},[ el("div",{class:"qtext"},it.stem) ]);
-    if(it.form==="single"){
-      const group=`m_${it.id}`;
-      it.choices.forEach(choice=>{
-        li.append(el("label",{class:"choice"},[
-          el("input",{type:"radio", name:group, value:choice}), " ", choice
-        ]));
-      });
-    } else if(it.form==="numeric"){
-      li.append(el("input",{type:"text", class:"numeric", "data-id":it.id, placeholder:"Enter number/fraction"}));
-    } else {
-      li.append(el("textarea",{rows:"2", placeholder:"Brief answer"}));
-    }
-    mList.append(li);
+  const domainLabel = state.phase === "math" ? "Math" : "English";
+  container.append(el("div",{class:"label"}, `${domainLabel} Question ${state.answeredInPhase+1} of ${state.targetInPhase}`));
+
+  // pick next item by adaptive diff
+  let picked;
+  if (state.phase==="math"){
+    picked = takeFrom(state.pools.mathByDiff, state.mathDiff, state.usedIds);
+  } else {
+    picked = takeFrom(state.pools.englishPool, state.engDiff, state.usedIds);
+  }
+  const { item } = picked;
+
+  if (!item){
+    // If no item available (extreme edge), advance phase or finish
+    advancePhaseOrFinish(container);
+    return;
+  }
+
+  state.current = item;
+  state.usedIds.add(item.id);
+
+  // Context (for reading questions)
+  if (item.context){
+    container.append(el("div",{class:"passage"}, item.context));
+  }
+
+  // Stem + choices
+  const li = el("div",{class:"item"});
+  li.append(el("div",{class:"qtext"}, item.stem));
+
+  const choiceWrap = el("div",{class:"choices"});
+  item.choices.forEach(c=>{
+    const btn = el("button",{class:"btn", onClick: ()=>answer(c)}, c);
+    choiceWrap.append(btn);
   });
-  container.append(mList);
+  li.append(choiceWrap);
 
-  // Reading
-  test.passages.forEach(p=>{
-    container.append(el("h3",{class:"label"},`Reading ${p.role} (${p.type}) — ${p.questions.length} questions`));
-    container.append(el("div",{class:"passage"}, p.text));
-    const qList=el("ol",{class:"item-list"});
-    p.questions.forEach(q=>{
-      const li=el("li",{class:"item"},[ el("div",{class:"qtext"}, q.stem) ]);
-      const group=`p_${p.id}_${q.id}`;
-      q.choices.forEach(c=>{
-        li.append(el("label",{class:"choice"},[
-          el("input",{type:"radio", name:group, value:c}), " ", c
-        ]));
-      });
-      qList.append(li);
-    });
-    container.append(qList);
-  });
-
-  // Language
-  container.append(el("h3",{class:"label"},"Language — 5 items"));
-  const lList=el("ol",{class:"item-list"});
-  test.language.forEach(it=>{
-    const li=el("li",{class:"item"},[ el("div",{class:"qtext"}, it.stem) ]);
-    const group=`l_${it.id}`;
-    it.choices.forEach(c=>{
-      li.append(el("label",{class:"choice"},[
-        el("input",{type:"radio", name:group, value:c}), " ", c
-      ]));
-    });
-    lList.append(li);
-  });
-  container.append(lList);
-
-  // Writing
-  container.append(el("h3",{class:"label"},"Writing — 10 minutes"));
-  container.append(el("p",{class:"writing-prompt"}, test.writing.prompt));
-  const timer=el("div",{id:"timer", class:"timer"},"10:00");
-  const ta=el("textarea",{id:"writing", rows:"8", placeholder:"Write your response here. The timer will count down."});
-  container.append(timer, ta);
-
-  startTimer(10, timer);
-
-  // Submit button
-  container.append(el("div",{style:"margin-top:10px"}, el("button",{id:"submitBtn", class:"btn primary", onClick: ()=>submit(test)}, "Submit")));
+  container.append(li);
 }
 
-function startTimer(minutes, display){
-  let remaining=minutes*60;
-  (function tick(){
-    const m=String(Math.floor(remaining/60)).padStart(2,"0");
-    const s=String(remaining%60).padStart(2,"0");
-    display.textContent=`${m}:${s}`;
-    remaining--;
-    if(remaining>=0) setTimeout(tick,1000);
-    else display.textContent="00:00";
-  })();
+/* ---------- Answer handler (adaptive) ---------- */
+function answer(chosen){
+  if (!state || !state.current) return;
+
+  const item = state.current;
+  const correct = String(chosen) === String(item.answer);
+  state.total++;
+  if (correct) state.correct++;
+
+  // strand bookkeeping
+  if (state.phase==="math"){
+    // Math items have a 'strand' field; pull from original pool by id
+    const original = MATH_ITEMS.find(x=>x.id===item.id);
+    const k = original?.strand || "NO";
+    state.strands[k][1]++;          // total
+    if (correct) state.strands[k][0]++; // correct
+
+    // adapt difficulty for next math question
+    state.mathDiff = correct
+      ? (state.mathDiff===DIFF.ON ? DIFF.STRETCH : DIFF.STRETCH)
+      : (state.mathDiff===DIFF.ON ? DIFF.CORE : DIFF.CORE);
+
+    state.answeredInPhase++;
+  } else {
+    // English: domain is RL/RI/LANG already on the item
+    const k = item.domain || "RL";
+    state.strands[k][1]++;
+    if (correct) state.strands[k][0]++;
+
+    // adapt difficulty for next english question
+    state.engDiff = correct
+      ? (state.engDiff===DIFF.ON ? DIFF.STRETCH : DIFF.STRETCH)
+      : (state.engDiff===DIFF.ON ? DIFF.CORE : DIFF.CORE);
+
+    state.answeredInPhase++;
+  }
+
+  // progress UI
+  setProgress();
+
+  // advance or finish
+  const container = document.getElementById("mount");
+  if (state.answeredInPhase >= state.targetInPhase){
+    advancePhaseOrFinish(container);
+  } else {
+    renderCurrent(container);
+  }
 }
 
-function submit(test){
-  let correct=0, total=0;
-  const strandScores={ NO:[0,0], FR:[0,0], ALG:[0,0], GEOM:[0,0], MD:[0,0], RL:[0,0], RI:[0,0], LANG:[0,0] };
+function advancePhaseOrFinish(container){
+  if (state.phase==="math"){
+    state.phase = "english";
+    state.targetInPhase = TARGET.english;
+    state.answeredInPhase = 0;
+    renderCurrent(container);
+    return;
+  }
+  // finished both phases
+  finishTest();
+}
 
-  // Math
-  test.math.forEach(it=>{
-    total++;
-    let val=null;
-    if(it.form==="single"){
-      val=document.querySelector(`input[name="m_${it.id}"]:checked`)?.value||null;
-    } else if(it.form==="numeric"){
-      val=document.querySelector(`input[data-id="${it.id}"]`)?.value?.trim();
-    } else {
-      val=document.querySelector(`textarea`)?.value?.trim();
-    }
-    if(val && String(val)===String(it.answer)){ correct++; strandScores[it.strand][0]++; }
-    strandScores[it.strand][1]++;
-  });
+/* ---------- Report ---------- */
+function levelForPct(p){
+  if (p >= 85) return {level:4, label:"Exceeds Grade Level"};
+  if (p >= 70) return {level:3, label:"On Grade Level"};
+  if (p >= 50) return {level:2, label:"Approaching Grade Level"};
+  return {level:1, label:"Below Grade Level"};
+}
 
-  // Reading
-  test.passages.forEach(p=>{
-    p.questions.forEach(q=>{
-      total++;
-      const val=document.querySelector(`input[name="p_${p.id}_${q.id}"]:checked`)?.value||null;
-      if(val && val===q.answer){ correct++; strandScores[p.type][0]++; }
-      strandScores[p.type][1]++;
-    });
-  });
+function buildActionPlan(strandScores){
+  const keysMath = ["NO","FR","ALG","GEOM","MD"];
+  const keysEng  = ["RL","RI","LANG"].filter(k=> (strandScores[k]?.[1]||0)>0);
 
-  // Language
-  test.language.forEach(it=>{
-    total++;
-    const val=document.querySelector(`input[name="l_${it.id}"]:checked`)?.value||null;
-    if(val && val===it.answer){ correct++; strandScores.LANG[0]++; }
-    strandScores.LANG[1]++;
-  });
+  const rank = (keys)=> keys
+    .map(k=>({k, p: pct(strandScores[k][0], strandScores[k][1])}))
+    .sort((a,b)=> a.p - b.p)
+    .slice(0,2);
 
-  // Writing length hint
-  const words=(document.getElementById("writing")?.value||"").split(/\s+/).filter(Boolean).length;
-  const writingNote = words>=120 ? "Writing sample length is strong (≥120 words). Score via rubric."
-                    : words>=60  ? "Adequate length (60–119 words). Score via rubric."
-                                 : "Short (<60 words). Teach elaboration & evidence.";
+  const suggestions = {
+    NO: "Fluency with multi-digit addition/subtraction; daily 10-minute computation warm-up.",
+    FR: "Fraction models & equivalence; use number lines/area models before algorithms.",
+    ALG:"Translate words→expressions; 1–2 step equations using inverse operations.",
+    GEOM:"Area/perimeter and triangle/angle relationships; sketch and label steps.",
+    MD: "Graphs, units, & volume; read tables/plots then solve multi-step problems.",
+    RL: "Theme & inference from character actions; cite two pieces of evidence.",
+    RI: "Main idea, text structure, vocab-in-context; annotate headings & captions.",
+    LANG:"Commas in a series/nonrestrictives; daily 3-minute edit drills."
+  };
 
-  const pct=Math.round(100*correct/total);
-  const report=document.getElementById("report");
+  const fmt = (x)=> `${x.k}: ${x.p}% — ${suggestions[x.k]}`;
+  return {
+    math: rank(keysMath).map(fmt),
+    english: rank(keysEng).map(fmt)
+  };
+}
+
+function finishTest(){
+  // lock UI
+  const mount = document.getElementById("mount");
+  mount.innerHTML = "";
+  const stopNote = el("p",{class:"examMuted"},"Test complete. See Instant Report below.");
+  mount.append(stopNote);
+
+  const pf = document.getElementById("progFill");
+  if (pf) pf.style.width = "100%";
+
+  // Compute domain totals from strand buckets
+  const s = state.strands;
+  const mathC = ["NO","FR","ALG","GEOM","MD"].reduce((sum,k)=>sum + (s[k]?.[0]||0), 0);
+  const mathT = ["NO","FR","ALG","GEOM","MD"].reduce((sum,k)=>sum + (s[k]?.[1]||0), 0);
+  const engC  = ["RL","RI","LANG"].reduce((sum,k)=>sum + (s[k]?.[0]||0), 0);
+  const engT  = ["RL","RI","LANG"].reduce((sum,k)=>sum + (s[k]?.[1]||0), 0);
+
+  const mathPct = pct(mathC, mathT);
+  const engPct  = pct(engC, engT);
+  const mathLevel = levelForPct(mathPct);
+  const engLevel  = levelForPct(engPct);
+
+  const action = buildActionPlan(s);
+
+  const report = document.getElementById("report");
   report.innerHTML = `
     <div class="title">Instant Report</div>
-    <p><strong>Raw Score:</strong> ${correct}/${total} (${pct}%)</p>
-    <div class="label" style="margin-top:8px">By Strand</div>
-    <ul style="margin:6px 0 0 20px">
-      ${Object.entries(strandScores).map(([k,[c,t]])=>`<li><b>${k}</b>: ${t?Math.round(100*c/t):0}% (${c}/${t})</li>`).join("")}
-    </ul>
-    <div class="label" style="margin-top:10px">Writing</div>
-    <p>${writingNote}</p>
-    <p style="color:var(--muted)"><em>Rubric traits:</em> ${test.writing.rubric.traits.join(", ")} (0–4 each).</p>
-  `;
+    <div class="grid3" style="margin-top:10px">
+      <div class="kpiBox"><div class="label">Math</div><div class="num">${mathPct}%</div><div class="examMuted">Level ${mathLevel.level} — ${mathLevel.label}</div></div>
+      <div class="kpiBox"><div class="label">English</div><div class="num">${engPct}%</div><div class="examMuted">Level ${engLevel.level} — ${engLevel.label}</div></div>
+      <div class="kpiBox"><div class="label">Overall</div><div class="num">${pct(mathC+engC, mathT+engT)}%</div><div class="examMuted">Adaptive 20-item path</div></div>
+    </div>
 
-  // simple progress fill (after submit)
-  const pf=document.getElementById("progFill"); if(pf){ pf.style.width="100%"; }
+    <div class="label" style="margin-top:14px">Exact Strand Breakdown</div>
+    <ul style="margin:6px 0 0 20px">
+      ${Object.entries(s).map(([k,[c,t]])=>`<li><b>${k}</b>: ${t?Math.round(100*c/t):0}% (${c}/${t})</li>`).join("")}
+    </ul>
+
+    <div class="label" style="margin-top:14px">Action Plan — Next 1–2 Weeks</div>
+    <div class="examCard">
+      <div class="title" style="margin:0 0 6px">Math Focus</div>
+      <ol style="margin:0 0 10px 18px">${action.math.map(x=>`<li>${x}</li>`).join("")}</ol>
+      <div class="title" style="margin:10px 0 6px">English Focus</div>
+      <ol style="margin:0 0 10px 18px">${action.english.map(x=>`<li>${x}</li>`).join("")}</ol>
+      <p class="examMuted">Structure: Mini-lesson (8–10m) → Guided (15m) → Independent (15m) → 2–3 Q exit ticket.</p>
+    </div>
+  `;
 }
 
+/* ---------- Public boot ---------- */
 export function boot(){
-  const gradeSelect=document.getElementById("grade");
-  document.getElementById("startBtn")?.addEventListener("click", ()=>{
-    const grade=Number(gradeSelect.value||5);
-    const test=generateTest(grade);
-    mountTest(document.getElementById("mount"), test);
-    document.getElementById("report").innerHTML="";
-    const pf=document.getElementById("progFill"); if(pf){ pf.style.width="25%"; }
+  const gradeSel = document.getElementById("grade");
+  const startBtn = document.getElementById("startBtn");
+  const mount = document.getElementById("mount");
+  const report = document.getElementById("report");
+
+  startBtn?.addEventListener("click", ()=>{
+    const grade = Number(gradeSel.value || 5);
+    initState(grade);
+    report.innerHTML = "";
+    setProgress();
+    renderCurrent(mount);
   });
 }
-
-
-
-
