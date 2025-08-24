@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>Ripa Diagnostic Preview</title>
+  <title>Ripa Diagnostic — Test</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link href="./styles.css" rel="stylesheet">
 </head>
@@ -11,39 +11,53 @@
 
   <header>
     <div class="container row">
-      <div class="brand"><span class="orb"></span> Ripa Diagnostic — Preview</div>
-      <nav><a href="./diagnostic-test.html" class="btn primary">Open Diagnostic</a></nav>
+      <div class="brand"><span class="orb"></span> Ripa Diagnostic</div>
+      <nav><a href="./index.html" class="btn">Back</a></nav>
     </div>
   </header>
 
   <main class="container">
-    <section class="hero">
-      <h1 class="headline">Balanced <span class="txt-grad">Baseline Exam</span></h1>
-      <p class="sub">Math strands rotate to avoid repetition. ELA includes two longer passages, a language mini-section, and a timed 10-minute writing sample with rubric traits.</p>
-      <div class="accent-bar"></div>
-      <p><a class="btn primary" href="./diagnostic-test.html">Start Now</a></p>
+    <section class="examCard">
+      <div class="stage">
+        <div>
+          <div class="examTitle">Baseline Diagnostic</div>
+          <p class="examMuted">Select grade and click Start.</p>
+          <div style="margin-top:10px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+            <label class="label" for="grade">Grade</label>
+            <select id="grade" class="btn" style="padding:10px 12px">
+              <option value="2">2</option><option value="3">3</option>
+              <option value="4">4</option><option value="5" selected>5</option>
+              <option value="6">6</option><option value="7">7</option><option value="8">8</option>
+            </select>
+            <button id="startBtn" class="btn primary">Start Test</button>
+          </div>
+          <div class="kpis" style="margin-top:14px">
+            <div class="kpiBox"><div class="label">Math</div><div class="num">16</div></div>
+            <div class="kpiBox"><div class="label">Reading</div><div class="num">12</div></div>
+            <div class="kpiBox"><div class="label">Lang + Write</div><div class="num">5 + 10m</div></div>
+          </div>
+        </div>
+        <div>
+          <div class="label">Progress</div>
+          <div class="progBar"><div class="progFill" id="progFill"></div></div>
+          <p class="examMuted" style="margin-top:6px">Progress updates when you submit.</p>
+        </div>
+      </div>
     </section>
 
-    <section class="grid3">
-      <div class="card">
-        <h3>Math Coverage</h3>
-        <p>Numbers & Ops, Fractions/Ratios, Algebraic Thinking, Geometry, Measurement/Data.</p>
-      </div>
-      <div class="card">
-        <h3>ELA Depth</h3>
-        <p>RL + RI passages (6 Qs each), Language (5), Writing sample (10 min).</p>
-      </div>
-      <div class="card">
-        <h3>Instant Report</h3>
-        <p>Strand percentages + writing note so you can place students fast.</p>
-      </div>
+    <section id="mount" class="panel">
+      <p class="examMuted">Awaiting start…</p>
     </section>
 
-    <footer>
-      © Ripa Elevate Academy — Preview build
-    </footer>
+    <section id="report" class="panel"></section>
   </main>
+
+  <script type="module">
+    import { boot } from './app.js';
+    window.addEventListener('DOMContentLoaded', boot);
+  </script>
 </body>
 </html>
+
 
 
