@@ -25,9 +25,13 @@
           <div style="margin-top:10px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
             <label class="label" for="grade">Grade</label>
             <select id="grade" class="btn" style="padding:10px 12px">
-              <option value="2">2</option><option value="3">3</option>
-              <option value="4">4</option><option value="5" selected>5</option>
-              <option value="6">6</option><option value="7">7</option><option value="8">8</option>
+              <option value="2">2</option>
+              <option value="3">3</option>
+              <option value="4">4</option>
+              <option value="5" selected>5</option>
+              <option value="6">6</option>
+              <option value="7">7</option>
+              <option value="8">8</option>
             </select>
             <button id="startBtn" class="btn primary" type="button">Start Test</button>
           </div>
@@ -54,10 +58,22 @@
     <section id="report" class="panel"></section>
   </main>
 
+  <noscript>
+    <p style="color:red; text-align:center; margin-top:20px;">
+      This diagnostic requires JavaScript. Please enable it in your browser.
+    </p>
+  </noscript>
+
   <script type="module">
     import { boot } from './app.js';
-    window.addEventListener('DOMContentLoaded', boot);
+    window.addEventListener('DOMContentLoaded', () => {
+      boot();
+      const startBtn = document.getElementById('startBtn');
+      startBtn?.addEventListener('click', () => {
+        startBtn.setAttribute('disabled','true');
+        startBtn.textContent = "Test Started…";
+      });
+    });
   </script>
 </body>
 </html>
-
