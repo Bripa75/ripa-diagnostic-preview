@@ -56,6 +56,19 @@
     </section>
 
     <section id="report" class="panel"></section>
+
+    <!-- Hidden completion notify form (Formspree) -->
+    <form id="notifyForm" action="https://formspree.io/f/mzzvlgge" method="POST" style="display:none">
+      <input type="hidden" name="_subject" value="Ripa Diagnostic: Student Completed" />
+      <input type="text" name="_gotcha" style="display:none" tabindex="-1" autocomplete="off" />
+      <input type="hidden" name="grade" id="notify-grade" />
+      <input type="hidden" name="mathPct" id="notify-mathPct" />
+      <input type="hidden" name="engPct" id="notify-engPct" />
+      <input type="hidden" name="confidence" id="notify-confidence" />
+      <input type="hidden" name="mathLevel" id="notify-mathLevel" />
+      <input type="hidden" name="elaLevel" id="notify-elaLevel" />
+      <input type="hidden" name="summary" id="notify-summary" />
+    </form>
   </main>
 
   <noscript>
@@ -66,6 +79,73 @@
 
   <script type="module">
     import { boot } from './app.js';
+
+    // Hook the Formspree notifier into the app
+    function notifyViaFormspree({ grade, mathPct, engPct, conf, mathLevel, elaLevel, summary }) {
+      const form = document.getElementById('notifyForm');
+      if (!form) return;
+      const set = (id, val) => { const el = document.getElementById(id); if (el) el.value = String(val); };
+      set('notify-grade', grade);
+      set('notify-mathPct', mathPct);
+      set('notify-engPct', engPct);
+      set('notify-confidence', conf);
+      set('notify-mathLevel', (mathLevel?.toFixed ? mathLevel.toFixed(1) : mathLevel));
+      set('notify-elaLevel', (elaLevel?.toFixed ? elaLevel.toFixed(1) : elaLevel));
+      set('notify-summary', summary);
+      try { form.submit(); } catch (e) { console.warn('Formspree submit failed', e); }
+    }
+
+    // Patch finishTest after boot so we can inject email without editing app.js too much
+    function wrapFinishForNotify(){
+      // Grab the exported functions/state via window after boot if your app exposes them.
+      // If not, we monkey-patch by intercepting the function on window (since app.js calls it in-place).
+      // In our case, we’ll override window.finishTest if app.js puts it on window; otherwise we attach into app.js by redefining a global.
+      const _finish = window.finishTest; // if app.js does not expose this, see the next block
+      if (typeof _finish === 'function') {
+        window.finishTest = function(){
+          // We need some values after original finish builds them.
+          const prevStrands = window.state?.strands; // app.js keeps state in closure; if it's not global, skip
+          _finish();
+          try {
+            // Safely read summary values from the DOM/report if state not exposed:
+            const grade = window.state?.grade ?? document.getElementById('grade')?.value ?? '';
+            // Pull rough values from text if needed; better if app.js exposes these on window.
+            // If state is available (from our app.js), compute here:
+            const s = window.state?.strands;
+            const pct = (c,t)=> t ? Math.round(100*c/t) : 0;
+            let mathPct=0, engPct=0, mathGL='', engGL='', conf='';
+
+            if (s){
+              const mathC = ["NO","FR","ALG","GEOM","MD"].reduce((sum,k)=>sum + (s[k]?.[0]||0), 0);
+              const mathT = ["NO","FR","ALG","GEOM","MD"].reduce((sum,k)=>sum + (s[k]?.[1]||0), 0);
+              const engC  = ["RL","RI","LANG"].reduce((sum,k)=>sum + (s[k]?.[0]||0), 0);
+              const engT  = ["RL","RI","LANG"].reduce((sum,k)=>sum + (s[k]?.[1]||0), 0);
+              mathPct = pct(mathC, mathT);
+              engPct  = pct(engC, engT);
+            }
+
+            // Read levels/confidence from rendered report (fallback)
+            const report = document.getElementById('report');
+            const text = report?.innerText || '';
+            const glMatch = text.match(/Math level \(current\)\s*([\d.]+)/i);
+            const elMatch = text.match(/ELA level \(current\)\s*([\d.]+)/i);
+            const confMatch = text.match(/Overall confidence\s*(\d+)%/i);
+            if (glMatch) mathGL = glMatch[1];
+            if (elMatch) engGL = elMatch[1];
+            if (confMatch) conf = confMatch[1];
+
+            const summary = `Diagnostic complete | Grade: ${grade} | Math: ${mathPct}% (level ${mathGL}) | ELA: ${engPct}% (level ${engGL}) | Confidence: ${conf}%`;
+
+            notifyViaFormspree({
+              grade, mathPct, engPct, conf, mathLevel: Number(mathGL || 0), elaLevel: Number(engGL || 0), summary
+            });
+          } catch (e) {
+            console.warn('Notify wrapper failed', e);
+          }
+        };
+      }
+    }
+
     window.addEventListener('DOMContentLoaded', () => {
       boot();
       const startBtn = document.getElementById('startBtn');
@@ -73,6 +153,9 @@
         startBtn.setAttribute('disabled','true');
         startBtn.textContent = "Test Started…";
       });
+
+      // Try to wrap finishTest for notification
+      wrapFinishForNotify();
     });
   </script>
 </body>
