@@ -5,6 +5,9 @@
   <title>Ripa Diagnostic — Test</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link href="./styles.css" rel="stylesheet" />
+  <style>
+    #errBanner{display:none;margin:12px 0;padding:10px 12px;border-radius:8px;background:#3b0d0d;color:#ffd7d7;border:1px solid #a33;}
+  </style>
 </head>
 <body>
   <div class="bg-gradient"></div>
@@ -17,6 +20,8 @@
   </header>
 
   <main class="container">
+    <div id="errBanner"></div>
+
     <section class="examCard">
       <div class="stage">
         <div>
@@ -26,17 +31,14 @@
           <div style="margin-top:10px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
             <label class="label" for="grade">Grade</label>
             <select id="grade" class="btn" style="padding:10px 12px">
-              <option value="2">2</option>
-              <option value="3">3</option>
-              <option value="4">4</option>
-              <option value="5">5</option>
-              <option value="6">6</option>
-              <option value="7" selected>7</option>
+              <option value="2">2</option><option value="3">3</option>
+              <option value="4">4</option><option value="5">5</option>
+              <option value="6">6</option><option value="7" selected>7</option>
               <option value="8">8</option>
             </select>
 
             <label class="label" for="studentName">Name</label>
-            <input id="studentName" class="btn" placeholder="Student name" style="padding:10px 12px" />
+            <input id="studentName" class="btn" placeholder="(optional)" style="padding:10px 12px" />
 
             <button id="startBtn" class="btn primary" type="button">Start Test</button>
           </div>
@@ -62,7 +64,7 @@
 
     <section id="report" class="panel"></section>
 
-    <!-- Hidden completion notify form (Formspree) -->
+    <!-- Formspree notify -->
     <form id="notifyForm" action="https://formspree.io/f/mzzvlgge" method="POST" style="display:none">
       <input type="hidden" name="_subject" value="Ripa Diagnostic: Student Completed" />
       <input type="text"   name="_gotcha" style="display:none" tabindex="-1" autocomplete="off" />
@@ -83,7 +85,15 @@
     </p>
   </noscript>
 
-  <!-- IMPORTANT: load the app directly; no import of a boot() that doesn't exist -->
-  <script type="module" src="./app.js"></script>
+  <!-- Load app; show a banner if it fails -->
+  <script type="module">
+    import('./app.js').catch(err=>{
+      const b=document.getElementById('errBanner');
+      b.style.display='block';
+      b.textContent='Script failed to load app.js. Check that app.js and bank.js are in the same folder and GitHub Pages cache is cleared.';
+      console.error(err);
+    });
+  </script>
 </body>
 </html>
+
