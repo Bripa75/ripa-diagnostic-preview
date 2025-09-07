@@ -85,15 +85,9 @@
     </p>
   </noscript>
 
-  <!-- Load app; show a banner if it fails -->
-  <script type="module">
-    import('./app.js').catch(err=>{
-      const b=document.getElementById('errBanner');
-      b.style.display='block';
-      b.textContent='Script failed to load app.js. Check that app.js and bank.js are in the same folder and GitHub Pages cache is cleared.';
-      console.error(err);
-    });
-  </script>
+  <!-- Direct module load (fixes dynamic import/CSP issues) -->
+  <script type="module" src="./app.js"></script>
 </body>
 </html>
+
 
