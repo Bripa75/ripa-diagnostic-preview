@@ -1,38 +1,38 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8">
-  <title>Ripa Diagnostic — Test</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <link href="./styles.css" rel="stylesheet">
+  <meta charset="utf-8" />
+  <title>Ripa Diagnostic — Baseline</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link href="./styles.css" rel="stylesheet" />
 </head>
 <body>
   <div class="bg-gradient"></div>
 
   <header>
     <div class="container row">
-      <div class="brand" aria-label="Ripa Diagnostic"><span class="orb"></span> Ripa Diagnostic</div>
-      <nav><a href="./index.html" class="btn" aria-label="Back to Home">Back</a></nav>
+      <div class="brand"><span class="orb"></span> Ripa Diagnostic</div>
+      <nav><a href="./index.html" class="btn">Back</a></nav>
     </div>
   </header>
 
   <main class="container">
-    <section class="examCard" aria-labelledby="examTitle">
+    <section class="examCard">
       <div class="stage">
         <div>
-          <div id="examTitle" class="examTitle">Baseline Diagnostic</div>
+          <div class="examTitle">Baseline Diagnostic</div>
           <p class="examMuted">Adaptive: 10 Math then 10 English (Grades 2–8)</p>
+
           <div style="margin-top:10px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
             <label class="label" for="grade">Grade</label>
-            <select id="grade" class="btn" style="padding:10px 12px" aria-label="Select grade">
-              <option value="2">2</option>
-              <option value="3">3</option>
-              <option value="4">4</option>
-              <option value="5" selected>5</option>
-              <option value="6">6</option>
-              <option value="7">7</option>
-              <option value="8">8</option>
+            <select id="grade" class="btn" style="padding:10px 12px">
+              <option>2</option><option>3</option><option>4</option>
+              <option selected>5</option><option>6</option><option>7</option><option>8</option>
             </select>
+
+            <label class="label" for="studentName">Name</label>
+            <input id="studentName" class="btn" style="padding:10px 12px" placeholder="Student name" />
+
             <button id="startBtn" class="btn primary" type="button">Start Test</button>
           </div>
 
@@ -45,31 +45,31 @@
 
         <div>
           <div class="label">Progress</div>
-          <div class="progBar" aria-label="Progress bar"><div class="progFill" id="progFill"></div></div>
+          <div class="progBar"><div class="progFill" id="progFill"></div></div>
           <p class="examMuted" style="margin-top:6px">Updates after every answer.</p>
         </div>
       </div>
     </section>
 
-    <section id="mount" class="panel" aria-live="polite">
+    <section id="mount" class="panel">
       <p class="examMuted">Awaiting start…</p>
     </section>
 
-    <section id="report" class="panel" aria-live="polite"></section>
+    <section id="report" class="panel"></section>
 
-    <!-- Hidden completion notify form (Formspree) -->
-    <form id="notifyForm" action="https://formspree.io/f/mzzvlgge" method="POST" style="display:none">
+    <!-- Hidden instructor notification -->
+    <form id="notifyForm" action="https://formspree.io/f/YOUR_FORMSPREE_ID" method="POST" style="display:none">
       <input type="hidden" name="_subject" value="Ripa Diagnostic: Student Completed" />
-      <!-- Honeypot -->
-      <input type="text" name="_gotcha" style="display:none" tabindex="-1" autocomplete="off" />
-      <!-- Payload -->
-      <input type="hidden" name="grade" id="notify-grade" />
-      <input type="hidden" name="mathPct" id="notify-mathPct" />
-      <input type="hidden" name="engPct" id="notify-engPct" />
-      <input type="hidden" name="confidence" id="notify-confidence" />
-      <input type="hidden" name="mathLevel" id="notify-mathLevel" />
-      <input type="hidden" name="elaLevel" id="notify-elaLevel" />
-      <input type="hidden" name="summary" id="notify-summary" />
+      <input type="text"    name="_gotcha" style="display:none" tabindex="-1" autocomplete="off" />
+      <input type="hidden" name="studentName" id="notify-name" />
+      <input type="hidden" name="grade"       id="notify-grade" />
+      <input type="hidden" name="mathPct"     id="notify-mathPct" />
+      <input type="hidden" name="engPct"      id="notify-engPct" />
+      <input type="hidden" name="mathLevel"   id="notify-mathLevel" />
+      <input type="hidden" name="elaLevel"    id="notify-elaLevel" />
+      <input type="hidden" name="confidence"  id="notify-confidence" />
+      <input type="hidden" name="details"     id="notify-details" />
+      <input type="hidden" name="summary"     id="notify-summary" />
     </form>
   </main>
 
@@ -79,150 +79,7 @@
     </p>
   </noscript>
 
-  <script type="module">
-    import { boot } from './app.js';
-
-    // ---------- Helpers ----------
-    function setVal(id, val) {
-      const el = document.getElementById(id);
-      if (el) el.value = String(val ?? '');
-    }
-
-    function notifyViaFormspree(payload) {
-      const form = document.getElementById('notifyForm');
-      if (!form) return;
-      setVal('notify-grade', payload.grade);
-      setVal('notify-mathPct', payload.mathPct);
-      setVal('notify-engPct', payload.engPct);
-      setVal('notify-confidence', payload.confidence);
-      setVal('notify-mathLevel', typeof payload.mathLevel === 'number' ? payload.mathLevel.toFixed(1) : payload.mathLevel);
-      setVal('notify-elaLevel', typeof payload.elaLevel === 'number' ? payload.elaLevel.toFixed(1) : payload.elaLevel);
-      setVal('notify-summary', payload.summary);
-      try { form.submit(); } catch (e) { console.warn('Formspree submit failed', e); }
-    }
-
-    // Parse numeric like "Math: 70% (level 6.5)" or fallback patterns
-    function extractNumbersFromReport(reportText) {
-      const text = reportText || '';
-      const getNum = (re) => {
-        const m = text.match(re);
-        return m ? Number(m[1]) : null;
-        // Example REs:
-        // /Math(?:\s+level.*)?\s*\(?current\)?\s*([\d.]+)/i
-      };
-
-      // Try multiple patterns for robustness
-      const mathPct   = getNum(/Math[^%]*?(\d{1,3})%/i);
-      const engPct    = getNum(/(ELA|English)[^%]*?(\d{1,3})%/i) ?? getNum(/English[^%]*?(\d{1,3})%/i);
-      const mathLevel = getNum(/Math[^0-9]*level[^0-9]*([\d.]+)/i);
-      const elaLevel  = getNum(/(ELA|English)[^0-9]*level[^0-9]*([\d.]+)/i);
-      const confidence= getNum(/confidence[^0-9]*?(\d{1,3})%/i);
-
-      return {
-        mathPct: (mathPct ?? 0),
-        engPct: (engPct ?? 0),
-        mathLevel: (mathLevel ?? 0),
-        elaLevel: (elaLevel ?? 0),
-        confidence: (confidence ?? 0)
-      };
-    }
-
-    // Build a concise summary line
-    function buildSummary({ grade, mathPct, engPct, mathLevel, elaLevel, confidence }) {
-      const ml = (typeof mathLevel === 'number' && !isNaN(mathLevel)) ? mathLevel.toFixed(1) : mathLevel;
-      const el = (typeof elaLevel === 'number'  && !isNaN(elaLevel))  ? elaLevel.toFixed(1)  : elaLevel;
-      return `Diagnostic complete | Grade: ${grade} | Math: ${mathPct}% (level ${ml}) | ELA: ${engPct}% (level ${el}) | Confidence: ${confidence}%`;
-    }
-
-    // Observe the #report panel for final render, then notify once
-    function installCompletionObserver() {
-      const report = document.getElementById('report');
-      if (!report) return;
-
-      let notified = false;
-
-      const maybeNotify = () => {
-        if (notified) return;
-        // Heuristic: app.js should populate #report with final summary when finished.
-        const hasContent = report.textContent && report.textContent.trim().length > 40; // avoid early flickers
-        const progressDone = document.getElementById('progFill')?.style?.width === '100%';
-
-        if (hasContent || progressDone) {
-          notified = true;
-          const grade = document.getElementById('grade')?.value ?? '';
-
-          // Prefer reading exact values from window.state if app.js exposes it
-          let mathPct = null, engPct = null, mathLevel = null, elaLevel = null, confidence = null;
-
-          try {
-            const s = window.state?.strands;
-            if (s) {
-              const pct = (c,t)=> t ? Math.round(100*c/t) : 0;
-              const mathC = ["NO","FR","ALG","GEOM","MD"].reduce((sum,k)=>sum + (s[k]?.[0]||0), 0);
-              const mathT = ["NO","FR","ALG","GEOM","MD"].reduce((sum,k)=>sum + (s[k]?.[1]||0), 0);
-              const engC  = ["RL","RI","LANG"].reduce((sum,k)=>sum + (s[k]?.[0]||0), 0);
-              const engT  = ["RL","RI","LANG"].reduce((sum,k)=>sum + (s[k]?.[1]||0), 0);
-              mathPct = pct(mathC, mathT);
-              engPct  = pct(engC, engT);
-            }
-            // Optional: levels/confidence if app.js exposes them
-            if (window.state?.levels) {
-              mathLevel = window.state.levels.math;
-              elaLevel  = window.state.levels.ela;
-            }
-            if (window.state?.confidence != null) {
-              confidence = Math.round(window.state.confidence);
-            }
-          } catch(e){ /* ignore; fallback to parsing */ }
-
-          if ([mathPct, engPct, mathLevel, elaLevel, confidence].some(v => v == null)) {
-            const parsed = extractNumbersFromReport(report.innerText || '');
-            mathPct    = mathPct    ?? parsed.mathPct;
-            engPct     = engPct     ?? parsed.engPct;
-            mathLevel  = mathLevel  ?? parsed.mathLevel;
-            elaLevel   = elaLevel   ?? parsed.elaLevel;
-            confidence = confidence ?? parsed.confidence;
-          }
-
-          const summary = buildSummary({ grade, mathPct, engPct, mathLevel, elaLevel, confidence });
-
-          notifyViaFormspree({
-            grade,
-            mathPct,
-            engPct,
-            confidence,
-            mathLevel,
-            elaLevel,
-            summary
-          });
-        }
-      };
-
-      const mo = new MutationObserver(() => {
-        // Debounce a bit to let content settle
-        clearTimeout(mo._t);
-        mo._t = setTimeout(maybeNotify, 150);
-      });
-
-      mo.observe(report, { childList: true, subtree: true, characterData: true });
-
-      // Safety timeout in case report is created instantly without mutations
-      setTimeout(maybeNotify, 1000);
-    }
-
-    window.addEventListener('DOMContentLoaded', () => {
-      boot();
-
-      const startBtn = document.getElementById('startBtn');
-      startBtn?.addEventListener('click', () => {
-        startBtn.setAttribute('disabled','true');
-        startBtn.textContent = "Test Started…";
-      });
-
-      // Install observer to detect completion and notify via Formspree
-      installCompletionObserver();
-    });
-  </script>
+  <script type="module" src="./app.js"></script>
 </body>
 </html>
 
