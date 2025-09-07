@@ -1,11 +1,7 @@
 // bank.js
-// ✅ Exactly 200 items (2–8): Math 140 + Reading 24 + Language 36
-// Fixes:
-//  - Geometry stretch now uses real Pythagorean triples (no rounding errors).
-//  - Fraction-equivalence choices never include another equivalent correct option.
-//  - Language subject–verb uses unambiguous subjects (no “data” edge case).
-//  - All MC items carry a single, verifiably-correct key.
-//  - Grade 7 content upgraded (Math + ELA), plus an RL 7–8 passage.
+// ✅ Exactly 200 items available (2–8): Math 140 + Reading 30 + Language 36
+// This file also exports a simple `questions` array (20 items) for app.js:
+// -> 10 Math + 5 Reading + 5 Language (English total = 10)
 
 export const DIFF = { CORE: "core", ON: "on", STRETCH: "stretch" };
 export const STRANDS = { MATH: ["NO","FR","ALG","GEOM","MD"] };
@@ -301,7 +297,7 @@ export const MATH_ITEMS = [];
   }
 })();
 
-/* ---------------- Reading passages (24 items) ---------------- */
+/* ---------------- Reading passages (flatten later) ---------------- */
 export const PASSAGES = [
   {
     id:"RL-2A", grade_band:[2,3], type:"RL",
@@ -355,7 +351,7 @@ low orbits take sharp pictures; higher ones watch weather over time.`,
       {id:"Q6", stem:"Evidence for main idea:", choices:["Engineers choose an orbit based on job.","Earth is round.","Space is big.","Satellites are metal."], answer:"Engineers choose an orbit based on job."}
     ]
   },
-  // NEW: RL passage for 7–8 to balance ELA pool
+  // RL 7–8
   {
     id:"RL-7B", grade_band:[7,8], type:"RL",
     text:`The auditorium lights dimmed as Maya stepped onto the stage. Her notes, once crisp,
@@ -411,10 +407,8 @@ export const LANG_ITEMS = [];
       { s: plural,   ok:"are", wrong:"is" }
     ];
     const t = pick(templates);
-    // ensure 2 copies of wrong won't duplicate the correct after shuffle slice
     const options = shuffle([t.ok, t.wrong, `${t.wrong} `, `${t.ok} `]).map(s=>s.trim());
     const uniq = [...new Set(options)].slice(0,4);
-    // Guarantee exactly one correct in the 4
     const withOneCorrect = [t.ok, ...uniq.filter(x=>x!==t.ok)].slice(0,4);
     return {
       stem:`Which completes the sentence correctly? ${t.s} ___ ready.`,
@@ -445,7 +439,7 @@ export const LANG_ITEMS = [];
         "She packed warm wool sweaters.",
         "She packed, warm wool, sweaters."
       ],
-      ans:2 // “warm wool sweaters” (not coordinate; no comma)
+      ans:2
     };
   }
   function pronounAntecedent(){
@@ -476,7 +470,6 @@ export const LANG_ITEMS = [];
   function make(idPrefix, g, diff, spec){
     const ch = spec();
     const answer = ch.key[ch.ans];
-    // Ensure 4 unique options with single correct
     const uniq = [...new Set(ch.key)];
     const choices = uniq.length >= 4 ? uniq.slice(0,4) : [...uniq, ...["(A)","(B)","(C)","(D)"]].slice(0,4);
     const correctIndex = choices.indexOf(answer);
@@ -491,13 +484,11 @@ export const LANG_ITEMS = [];
 
   grades.forEach(g=>{
     if (g === 7){
-      // Upgrade rigor for Grade 7 (L.7)
-      LANG_ITEMS.push(make("NRC", g, DIFF.CORE, nonrestrictive));       // commas around nonrestrictive
-      LANG_ITEMS.push(make("CDA", g, DIFF.CORE, coordinateAdjectives)); // coordinate adjectives
-      LANG_ITEMS.push(make("PRA", g, DIFF.ON,  pronounAntecedent));     // pronoun–antecedent
-      LANG_ITEMS.push(make("VMV", g, DIFF.ON,  verbMoodVoice));         // mood/voice (subjunctive)
+      LANG_ITEMS.push(make("NRC", g, DIFF.CORE, nonrestrictive));
+      LANG_ITEMS.push(make("CDA", g, DIFF.CORE, coordinateAdjectives));
+      LANG_ITEMS.push(make("PRA", g, DIFF.ON,  pronounAntecedent));
+      LANG_ITEMS.push(make("VMV", g, DIFF.ON,  verbMoodVoice));
     } else {
-      // Original set for other grades
       LANG_ITEMS.push(make("SER", g, DIFF.CORE, commasSeries));
       LANG_ITEMS.push(make("CAP", g, DIFF.CORE, capitalization));
       LANG_ITEMS.push(make("SV",  g, DIFF.ON,   subjectVerb));
@@ -505,7 +496,6 @@ export const LANG_ITEMS = [];
     }
   });
 
-  // Keep STRETCH extras (8 items), skew slightly upper grades
   const extraGrades = [8,7,6,5];
   let added = 0;
   while (added < extrasNeeded){
@@ -514,4 +504,33 @@ export const LANG_ITEMS = [];
   }
 })();
 
+/* ============= Build a simple 20-question array for app.js ============= */
+/* Shape: { question, options, answer } */
 
+// Flatten reading passage questions
+function flattenReading(p) {
+  return p.questions.map(q => ({
+    question: q.stem,
+    options: q.choices,
+    answer: q.answer
+  }));
+}
+
+// Take 10 Math, 5 Reading, 5 Language (English = 10)
+const MATH_10 = shuffle(MATH_ITEMS).slice(0, 10).map(m => ({
+  question: m.stem,
+  options: m.choices,
+  answer: m.answer
+}));
+
+const READING_ALL = PASSAGES.flatMap(flattenReading);
+const READING_5 = shuffle(READING_ALL).slice(0, 5);
+
+const LANGUAGE_5 = shuffle(LANG_ITEMS).slice(0, 5).map(l => ({
+  question: l.stem,
+  options: l.choices,
+  answer: l.answer
+}));
+
+// Final exported pool (shuffle to mix subjects)
+export const questions = shuffle([...MATH_10, ...READING_5, ...LANGUAGE_5]);
