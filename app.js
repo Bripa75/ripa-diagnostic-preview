@@ -1,200 +1,219 @@
-// app.js
-// Works with diagnostic-test.html (Start button id=startBtn, mount id=mount, progFill id=progFill)
-// and with the large bank.js you pasted (exports MATH_ITEMS, PASSAGES, LANG_ITEMS).
+// app.js — single, consistent controller for diagnostic-test.html
+import { MATH_ITEMS, LANG_ITEMS, PASSAGES } from './bank.js';
 
-import { MATH_ITEMS, PASSAGES, LANG_ITEMS } from './bank.js';
+// ---------- utilities ----------
+const $  = (sel) => document.querySelector(sel);
+const $$ = (sel) => Array.from(document.querySelectorAll(sel));
+const shuffle = (a) => { const c=[...a]; for(let i=c.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [c[i],c[j]]=[c[j],c[i]]; } return c; };
+const sample  = (arr, n) => shuffle(arr).slice(0, n);
 
-function el(q, root = document) { return root.querySelector(q); }
-function els(q, root = document) { return [...root.querySelectorAll(q)]; }
-function shuffle(a){ const c=[...a]; for(let i=c.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [c[i],c[j]]=[c[j],c[i]]; } return c; }
+// ---------- DOM refs ----------
+const startBtn   = $('#startBtn');
+const gradeSel   = $('#grade');
+const nameInput  = $('#studentName');
+const mount      = $('#mount');
+const reportEl   = $('#report');
+const progFill   = $('#progFill');
 
-// Build a fixed set: 10 Math, 5 Reading (from passages), 5 Language — all filtered by grade
-function buildQuestions(grade){
-  const inGrade = (min,max)=> (g)=> grade >= (min ?? g.grade_min ?? 2) && grade <= (max ?? g.grade_max ?? 8);
+// ---------- state ----------
+let state = {
+  grade: 7,
+  idx: 0,
+  questions: [],
+  correct: 0,
+  englishCorrect: 0,
+  mathCorrect: 0,
+  answered: [],
+};
 
-  // --- Math: prefer exact-grade items, fall back to closest
-  const mathPool = MATH_ITEMS.filter(q => grade >= (q.grade_min??2) && grade <= (q.grade_max??8));
-  const math = shuffle(mathPool).slice(0, 10).map(q => ({
-    question: q.stem,
-    choices: q.choices,
-    answer: q.answer,
-    cat: q.strand || 'MATH'
-  }));
+// expose for debugging/notify wrapper if ever needed
+window.state = state;
 
-  // --- Reading: pick 1–2 passages that include the grade, take 5 total Qs
-  const passPool = PASSAGES.filter(p => {
-    const [lo,hi] = p.grade_band || [2,8];
-    return grade >= lo && grade <= hi;
-  });
-  const pickedPassages = shuffle(passPool).slice(0, Math.min(2, passPool.length));
-  const reading = [];
-  for (const p of pickedPassages){
-    // take up to 5 from first, then fill remainder from next
-    const need = 5 - reading.length;
-    const take = Math.min(need, p.questions.length);
-    const qs = shuffle(p.questions).slice(0, take).map(q => ({
-      question: q.stem,
+// ---------- building questions ----------
+function buildQuestions(grade) {
+  // math pool for chosen grade
+  const mathPool = MATH_ITEMS.filter(i => grade >= i.grade_min && grade <= i.grade_max);
+  const mathQs   = sample(mathPool, 10).map(toQ);
+
+  // english pool: mix language + reading
+  const langPool = LANG_ITEMS.filter(i => grade >= i.grade_min && grade <= i.grade_max);
+  const langQs   = sample(langPool, 7).map(toQ);
+
+  const passPool = PASSAGES.filter(p => grade >= p.grade_band[0] && grade <= p.grade_band[1]);
+  const passage  = passPool.length ? passPool[Math.floor(Math.random()*passPool.length)] : null;
+  let readQs = [];
+  if (passage) {
+    // pick 3 questions from that passage
+    const picks = sample(passage.questions, Math.min(3, passage.questions.length));
+    readQs = picks.map(q => ({
+      type: 'ENG',
+      stem: q.stem,
       choices: q.choices,
       answer: q.answer,
-      cat: p.type || 'RL'    // RL or RI
+      meta: { passageId: passage.id }
     }));
-    reading.push(...qs);
-    if (reading.length >= 5) break;
-  }
-  // If not enough (shouldn’t happen), pad from any passage
-  if (reading.length < 5){
-    const any = shuffle(PASSAGES.flatMap(p => p.questions.map(q => ({
-      question: q.stem, choices: q.choices, answer: q.answer, cat: p.type || 'RL'
-    })))).slice(0, 5 - reading.length);
-    reading.push(...any);
   }
 
-  // --- Language: exact grade where possible
-  const langPool = LANG_ITEMS.filter(q => grade >= (q.grade_min??2) && grade <= (q.grade_max??8));
-  const language = shuffle(langPool).slice(0, 5).map(q => ({
-    question: q.stem,
-    choices: q.choices,
-    answer: q.answer,
-    cat: 'LANG'
-  }));
+  const engQsRaw = [...langQs, ...readQs].slice(0, 10);
+  const taggedMath = mathQs.map(q => ({...q, type:'MATH'}));
+  const taggedEng  = engQsRaw.map(q => ({...q, type:'ENG'}));
 
-  return [...math, ...reading, ...language];
+  return [...taggedMath, ...taggedEng];
 }
 
-// Small summary helpers for Formspree wrapper
-function summarizeStrands(log){
-  // strands we care about for math vs english buckets
-  const mathCats = new Set(['NO','FR','ALG','GEOM','MD','MATH']);
-  const engCats  = new Set(['RL','RI','LANG']);
-
-  const strands = {};
-  for (const row of log){
-    const k = row.cat;
-    if (!strands[k]) strands[k] = [0,0]; // [correct, total]
-    strands[k][1] += 1;
-    if (row.isCorrect) strands[k][0] += 1;
-  }
-  const addSet = (setName, cats) => {
-    let c = 0, t = 0;
-    for (const [k,[ck,tk]] of Object.entries(strands)){
-      if (cats.has(k)) { c += ck; t += tk; }
-    }
-    return [c,t];
+function toQ(item) {
+  // Normalize bank item → renderable question
+  return {
+    stem: item.stem,
+    choices: item.choices,
+    answer: item.answer
   };
-  strands.MATH_TOTAL = addSet('math', mathCats);
-  strands.ENG_TOTAL  = addSet('eng', engCats);
-  return strands;
 }
 
-export function boot(){
-  const startBtn = el('#startBtn');
-  const mount    = el('#mount');
-  const progFill = el('#progFill');
-  const gradeSel = el('#grade');
+// ---------- rendering ----------
+function renderQuestion() {
+  const q = state.questions[state.idx];
 
-  const state = {
-    grade: Number(gradeSel?.value || 5),
-    idx: 0,
-    items: [],
-    log: [],           // { q, selected, correct, isCorrect, cat }
-    strands: {}        // filled at the end for the notifier
-  };
-  window.state = state; // expose to the notifier
+  const top = document.createElement('div');
+  top.className = 'questionCard';
 
-  function setProg(){
-    const pct = Math.round((state.idx / state.items.length) * 100);
-    if (progFill) progFill.style.width = `${pct}%`;
-  }
+  const header = document.createElement('div');
+  header.style.marginBottom = '8px';
+  header.textContent = `Question ${state.idx + 1} of ${state.questions.length}`;
 
-  function renderQ(){
-    const q = state.items[state.idx];
-    if (!q){ return finish(); }
-    setProg();
+  const stem = document.createElement('div');
+  stem.className = 'stem';
+  stem.textContent = q.stem;
 
-    mount.innerHTML = `
-      <div class="qcard">
-        <div class="qnum">Question ${state.idx + 1} of ${state.items.length}</div>
-        <div class="qstem">${q.question}</div>
-        <div class="qopts"></div>
-      </div>
-    `;
-    const optsBox = el('.qopts', mount);
-    q.choices.forEach(choice => {
-      const b = document.createElement('button');
-      b.className = 'option-btn';
-      b.textContent = choice;
-      b.addEventListener('click', () => choose(choice));
-      optsBox.appendChild(b);
-    });
-  }
+  const btnWrap = document.createElement('div');
+  btnWrap.style.display = 'flex';
+  btnWrap.style.flexWrap = 'wrap';
+  btnWrap.style.gap = '8px';
+  btnWrap.style.marginTop = '8px';
 
-  function choose(choice){
-    const q = state.items[state.idx];
-    const correct = q.answer;
-    const isCorrect = String(choice) === String(correct);
-
-    state.log.push({
-      q: q.question, selected: choice, correct, isCorrect, cat: q.cat
-    });
-
-    // lock
-    els('.option-btn', mount).forEach(b=>{
-      b.disabled = true;
-      if (b.textContent === String(correct)) b.classList.add('correct');
-      if (b.textContent === String(choice) && !isCorrect) b.classList.add('incorrect');
-    });
-
-    // short pause then next
-    setTimeout(() => {
-      state.idx++;
-      if (state.idx < state.items.length) {
-        renderQ();
-      } else {
-        finish();
-      }
-    }, 500);
-  }
-
-  function start(){
-    state.grade = Number(gradeSel?.value || 5);
-    state.items = buildQuestions(state.grade);
-    state.idx = 0;
-    state.log = [];
-    setProg();
-    renderQ();
-  }
-
-  function finish(){
-    setProg();
-    // compute strand buckets for notifier
-    state.strands = summarizeStrands(state.log);
-
-    // simple thank-you view
-    const correct = state.log.filter(r=>r.isCorrect).length;
-    mount.innerHTML = `
-      <div class="summary">
-        <h3>All done!</h3>
-        <p>You answered <strong>${correct}</strong> of <strong>${state.items.length}</strong> correctly.</p>
-        <p>Your teacher will receive a detailed report.</p>
-      </div>
-    `;
-
-    // call the wrapper in diagnostic-test.html
-    if (typeof window.finishTest === 'function') {
-      window.finishTest();
-    }
-  }
-
-  // Wire Start button (keep your visual change)
-  startBtn?.addEventListener('click', () => {
-    startBtn.setAttribute('disabled','true');
-    startBtn.textContent = 'Test Started…';
-    start();
+  q.choices.forEach(choice => {
+    const btn = document.createElement('button');
+    btn.className = 'btn';
+    btn.textContent = choice;
+    btn.addEventListener('click', () => handleAnswer(choice));
+    btnWrap.appendChild(btn);
   });
 
-  // if someone changes the grade before starting, reflect it in state
-  gradeSel?.addEventListener('change', e => {
-    state.grade = Number(e.target.value || 5);
-  });
+  top.appendChild(header);
+  top.appendChild(stem);
+  top.appendChild(btnWrap);
+
+  mount.innerHTML = '';
+  mount.appendChild(top);
+
+  // progress
+  const pct = Math.round((state.idx / state.questions.length) * 100);
+  progFill.style.width = `${pct}%`;
 }
+
+function handleAnswer(choice) {
+  const q = state.questions[state.idx];
+  const correct = choice === q.answer;
+  state.answered.push({ idx: state.idx, stem: q.stem, selected: choice, correct: q.answer, isCorrect: correct });
+
+  if (correct) {
+    state.correct++;
+    if (q.type === 'MATH') state.mathCorrect++;
+    if (q.type === 'ENG')  state.englishCorrect++;
+  }
+
+  state.idx++;
+
+  if (state.idx < state.questions.length) {
+    renderQuestion();
+  } else {
+    finishTest();
+  }
+}
+
+// ---------- results + notify ----------
+function finishTest() {
+  // final progress
+  progFill.style.width = '100%';
+
+  const total = state.questions.length;
+  const mathPct = Math.round((state.mathCorrect / 10) * 100);
+  const engPct  = Math.round((state.englishCorrect / 10) * 100);
+
+  // simple “levels” (illustrative)
+  const mathLevel = (state.grade - 0.2 + (mathPct - 50)/100).toFixed(1);
+  const elaLevel  = (state.grade - 0.2 + (engPct  - 50)/100).toFixed(1);
+
+  // confidence as % of correct
+  const conf = Math.round((state.correct / total) * 100);
+
+  const summary = `Diagnostic complete | Grade: ${state.grade} | Math: ${mathPct}% (level ${mathLevel}) | ELA: ${engPct}% (level ${elaLevel}) | Confidence: ${conf}%`;
+
+  // render report
+  reportEl.innerHTML = `
+    <div class="reportCard">
+      <h3>Report</h3>
+      <p><strong>Student:</strong> ${nameInput.value || '(no name)'}</p>
+      <p><strong>Math correct:</strong> ${state.mathCorrect}/10 &nbsp; (<em>Math level (current) ${mathLevel}</em>)</p>
+      <p><strong>ELA correct:</strong> ${state.englishCorrect}/10 &nbsp; (<em>ELA level (current) ${elaLevel}</em>)</p>
+      <p><strong>Overall confidence:</strong> ${conf}%</p>
+      <pre style="white-space:pre-wrap;margin-top:10px">${state.answered.map((a,i)=>`Q${i+1}. ${a.stem}\n- Student: ${a.selected}\n- Correct: ${a.correct}\n- ${a.isCorrect?'✔️':'❌'}`).join('\n\n')}</pre>
+    </div>
+  `;
+
+  // push to Formspree
+  notifyViaFormspree({
+    grade: state.grade,
+    mathPct, engPct, conf,
+    mathLevel: Number(mathLevel),
+    elaLevel: Number(elaLevel),
+    student: nameInput.value || '(no name)',
+    summary
+  });
+
+  // scroll report into view
+  reportEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function notifyViaFormspree({ grade, mathPct, engPct, conf, mathLevel, elaLevel, student, summary }) {
+  const set = (id, val) => { const el = document.getElementById(id); if (el) el.value = String(val); };
+  set('notify-grade', grade);
+  set('notify-mathPct', mathPct);
+  set('notify-engPct', engPct);
+  set('notify-confidence', conf);
+  set('notify-mathLevel', mathLevel);
+  set('notify-elaLevel', elaLevel);
+  set('notify-summary', summary);
+  set('notify-student', student);
+
+  const form = document.getElementById('notifyForm');
+  try { form.submit(); } catch (e) { console.warn('Formspree submit failed', e); }
+}
+
+// ---------- start ----------
+function start() {
+  const nm = nameInput.value.trim();
+  if (!nm) {
+    alert('Please enter the student name.');
+    return;
+  }
+  state.grade = Number(gradeSel.value);
+  state.idx = 0;
+  state.correct = 0;
+  state.mathCorrect = 0;
+  state.englishCorrect = 0;
+  state.answered = [];
+  state.questions = buildQuestions(state.grade);
+
+  reportEl.innerHTML = '';
+  renderQuestion();
+
+  startBtn.disabled = true;
+  startBtn.textContent = 'Test Started…';
+}
+
+window.addEventListener('DOMContentLoaded', () => {
+  startBtn?.addEventListener('click', start);
+});
+
 
