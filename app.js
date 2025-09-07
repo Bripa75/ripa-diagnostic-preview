@@ -1,6 +1,8 @@
 // app.js — Adaptive 20-item path (10 Math → 10 English). Grades 2–8.
-// Difficulty goes up on correct, down on incorrect. Rotation avoids repeats per grade.
-// Report now shows: current levels (decimals), expected vs grade, confidence %, strengths/priorities chips, standards toggle.
+// Difficulty moves after 3-in-a-row (up or down). Adjacent-band fallback only.
+// Math coverage: 10 slots = 2× each strand (NO, FR, ALG, GEOM, MD), shuffled, no adjacents.
+// English coverage: 10 slots = 4× RL, 4× RI, 2× LANG, shuffled, avoid adjacents.
+// Report shows current levels (decimals), expected vs grade, confidence %, strengths/priorities chips, standards toggle.
 
 import { DIFF, MATH_ITEMS, PASSAGES, LANG_ITEMS } from './bank.js';
 
@@ -71,25 +73,86 @@ function buildPools(grade){
   return { mathByDiff, englishPool };
 }
 
-/* Difficulty-aware, rotation-aware picker */
-function takeFrom(poolMap, wantDiff, usedIds, seenSet){
-  const order = wantDiff===DIFF.CORE
-    ? [DIFF.CORE, DIFF.ON, DIFF.STRETCH]
-    : wantDiff===DIFF.ON
-      ? [DIFF.ON, DIFF.CORE, DIFF.STRETCH]
-      : [DIFF.STRETCH, DIFF.ON, DIFF.CORE];
+/* ---------------- Difficulty buffer: 3-in-a-row to move ---------------- */
+function adjustDiff3(curDiff, buf, isCorrect){
+  const nextBuf = isCorrect ? Math.min(3, buf + 1) : Math.max(-3, buf - 1);
+  if (nextBuf >= 3)  return { diff: (curDiff===DIFF.CORE ? DIFF.ON : DIFF.STRETCH), buf: 0 };
+  if (nextBuf <= -3) return { diff: (curDiff===DIFF.STRETCH ? DIFF.ON : DIFF.CORE), buf: 0 };
+  return { diff: curDiff, buf: nextBuf };
+}
 
+/* ---------------- Coverage plans ---------------- */
+function buildMathPlan(){
+  // Two of each strand → 10 slots
+  const strands = ["NO","FR","ALG","GEOM","MD"];
+  const plan = [...strands, ...strands];
+  for (let i = plan.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [plan[i], plan[j]] = [plan[j], plan[i]];
+  }
+  // fix accidental adjacents
+  for (let i=1; i<plan.length; i++){
+    if (plan[i] === plan[i-1]){
+      const swapWith = (i+1 < plan.length) ? i+1 : i-2;
+      if (swapWith >=0 && swapWith < plan.length){
+        [plan[i], plan[swapWith]] = [plan[swapWith], plan[i]];
+      }
+    }
+  }
+  return plan;
+}
+
+function buildEnglishPlan(){
+  // 4 RL + 4 RI + 2 LANG → 10 slots
+  const plan = ["RL","RL","RL","RL","RI","RI","RI","RI","LANG","LANG"];
+  for (let i = plan.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [plan[i], plan[j]] = [plan[j], plan[i]];
+  }
+  for (let i=1; i<plan.length; i++){
+    if (plan[i] === plan[i-1]){
+      const swapWith = (i+1 < plan.length) ? i+1 : i-2;
+      if (swapWith >=0 && swapWith < plan.length){
+        [plan[i], plan[swapWith]] = [plan[swapWith], plan[i]];
+      }
+    }
+  }
+  return plan;
+}
+
+/* ---------------- Strand/domain-aware picker with adjacent fallback only ---------------- */
+function takeFromWithKey(poolMap, wantDiff, usedIds, seenSet, keyField, keyValue){
+  const order = wantDiff===DIFF.CORE ? [DIFF.CORE, DIFF.ON]
+              : wantDiff===DIFF.ON   ? [DIFF.ON, DIFF.CORE, DIFF.STRETCH]
+              :                        [DIFF.STRETCH, DIFF.ON];
+
+  // Pass 1: unseen + unused
   for (const d of order){
-    const pool = poolMap[d].filter(x => !usedIds.has(x.id) && !seenSet.has(x.id));
+    const pool = poolMap[d].filter(x =>
+      !usedIds.has(x.id) && !seenSet.has(x.id) && (keyValue ? x[keyField]===keyValue : true)
+    );
     if (pool.length) return { item: pickOne(pool), usedDiff: d };
   }
+  // Pass 2: allow seen, still avoid used
   for (const d of order){
-    const pool = poolMap[d].filter(x => !usedIds.has(x.id));
+    const pool = poolMap[d].filter(x =>
+      !usedIds.has(x.id) && (keyValue ? x[keyField]===keyValue : true)
+    );
     if (pool.length) return { item: pickOne(pool), usedDiff: d };
   }
-  const any = Object.values(poolMap).flat().filter(x=>!usedIds.has(x.id));
-  if (any.length) return { item: pickOne(any), usedDiff: DIFF.ON };
   return { item: null, usedDiff: wantDiff };
+}
+
+/* ---------------- Dev safety: validate item integrity ---------------- */
+function validateItem(item){
+  if (!item) return true;
+  const choices = item.choices || [];
+  if (choices.length !== 4) return false;
+  const set = new Set(choices.map(c=>String(c)));
+  if (set.size !== 4) return false;
+  const correct = String(item.answer);
+  const correctCount = choices.filter(c=>String(c)===correct).length;
+  return correctCount === 1;
 }
 
 /* ---------------- Runtime State ---------------- */
@@ -114,7 +177,15 @@ function initState(grade){
 
     pools,
     current: null,
-    lastDiffs: [] // for confidence/flavor
+    lastDiffs: [], // for confidence/flavor
+
+    // NEW: hysteresis buffers + coverage plans
+    mathBuf: 0,
+    engBuf: 0,
+    mathPlan: buildMathPlan(),
+    mathPlanIdx: 0,
+    engPlan: buildEnglishPlan(),
+    engPlanIdx: 0
   };
 }
 
@@ -146,31 +217,55 @@ function renderCurrent(container){
   container.append(el("div",{class:"label"}, `${domainLabel} Question ${state.answeredInPhase+1} of ${state.targetInPhase}`));
 
   const seen = loadSeen(state.grade, state.phase);
-  const picked = state.phase==="math"
-    ? takeFrom(state.pools.mathByDiff, state.mathDiff, state.usedIds, seen)
-    : takeFrom(state.pools.englishPool, state.engDiff, state.usedIds, seen);
+
+  // Coverage-aware picking
+  let picked;
+  if (state.phase==="math"){
+    const wantStrand = state.mathPlan[state.mathPlanIdx] || "NO";
+    picked = takeFromWithKey(state.pools.mathByDiff, state.mathDiff, state.usedIds, seen, "strand", wantStrand);
+  } else {
+    const wantDomain = state.engPlan[state.engPlanIdx] || "RL";
+    picked = takeFromWithKey(state.pools.englishPool, state.engDiff, state.usedIds, seen, "domain", wantDomain);
+  }
 
   const item = picked.item;
   if (!item){ advancePhaseOrFinish(container); return; }
 
-  state.current = item;
-  state.usedIds.add(item.id);
-  addSeen(state.grade, state.phase, item.id);
+  // Validate; if invalid, try once ignoring "seen" (still avoid used)
+  if (!validateItem(item)){
+    const retry = state.phase==="math"
+      ? takeFromWithKey(state.pools.mathByDiff, state.mathDiff, state.usedIds, new Set(), "strand", state.mathPlan[state.mathPlanIdx])
+      : takeFromWithKey(state.pools.englishPool, state.engDiff, state.usedIds, new Set(), "domain", state.engPlan[state.engPlanIdx]);
+    if (!retry.item){ advancePhaseOrFinish(container); return; }
+    state.current = retry.item;
+  } else {
+    state.current = item;
+  }
 
-  if (item.context){ container.append(el("div",{class:"passage"}, item.context)); }
+  state.usedIds.add(state.current.id);
+  addSeen(state.grade, state.phase, state.current.id);
+
+  if (state.current.context){ container.append(el("div",{class:"passage"}, state.current.context)); }
 
   const li = el("div",{class:"item"});
-  li.append(el("div",{class:"qtext"}, item.stem));
+  li.append(el("div",{class:"qtext"}, state.current.stem));
 
   const wrap = el("div",{class:"choices"});
-  (item.choices||[]).forEach(c=>{
+  (state.current.choices||[]).forEach(c=>{
     wrap.append(el("button",{class:"btn", onClick: ()=>answer(c)}, c));
   });
   li.append(wrap);
   container.append(li);
+
+  // advance coverage indices after rendering
+  if (state.phase==="math"){
+    state.mathPlanIdx = Math.min(state.mathPlanIdx + 1, state.targetInPhase - 1);
+  } else {
+    state.engPlanIdx = Math.min(state.engPlanIdx + 1, state.targetInPhase - 1);
+  }
 }
 
-/* ---------------- Answer (adaptive) ---------------- */
+/* ---------------- Answer (adaptive with hysteresis) ---------------- */
 function diffToScore(d){ return d===DIFF.CORE?1:d===DIFF.ON?2:3; }
 
 function answer(chosen){
@@ -182,16 +277,14 @@ function answer(chosen){
   if (state.phase==="math"){
     const strand = item.strand || "NO";
     state.strands[strand][1]++; if (isCorrect) state.strands[strand][0]++;
-    state.mathDiff = isCorrect
-      ? (state.mathDiff===DIFF.CORE ? DIFF.ON : DIFF.STRETCH)
-      : (state.mathDiff===DIFF.STRETCH ? DIFF.ON : DIFF.CORE);
+    const upd = adjustDiff3(state.mathDiff, state.mathBuf, isCorrect);
+    state.mathDiff = upd.diff; state.mathBuf = upd.buf;
     state.lastDiffs.push(diffToScore(state.mathDiff));
   } else {
-    const k = item.domain || "RL";
-    state.strands[k][1]++; if (isCorrect) state.strands[k][0]++;
-    state.engDiff = isCorrect
-      ? (state.engDiff===DIFF.CORE ? DIFF.ON : DIFF.STRETCH)
-      : (state.engDiff===DIFF.STRETCH ? DIFF.ON : DIFF.CORE);
+    const dom = item.domain || "RL";
+    state.strands[dom][1]++; if (isCorrect) state.strands[dom][0]++;
+    const upd = adjustDiff3(state.engDiff, state.engBuf, isCorrect);
+    state.engDiff = upd.diff; state.engBuf = upd.buf;
     state.lastDiffs.push(diffToScore(state.engDiff));
   }
 
@@ -412,9 +505,9 @@ export function boot(){
   startBtn?.addEventListener("click", ()=>{
     const grade = Number(gradeSel.value || 5);
     initState(grade);
+    // console.log("Math plan:", state.mathPlan, "English plan:", state.engPlan); // dev check
     report.innerHTML = "";
     setProgress();
     renderCurrent(mount);
   });
 }
-
