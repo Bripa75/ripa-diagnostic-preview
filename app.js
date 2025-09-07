@@ -158,6 +158,23 @@ function validateItem(item){
 /* ---------------- Runtime State ---------------- */
 let state = null;
 
+/* ---------------- Email notify helper (Formspree hidden form) ---------------- */
+function notifyViaFormspree({ grade, mathPct, engPct, conf, mathLevel, elaLevel, summary }) {
+  const form = document.getElementById('notifyForm');
+  if (!form) return; // no-op if the form isn't on the page
+
+  const set = (id, val) => { const el = document.getElementById(id); if (el) el.value = String(val); };
+  set('notify-grade', grade);
+  set('notify-mathPct', mathPct);
+  set('notify-engPct', engPct);
+  set('notify-confidence', conf);
+  set('notify-mathLevel', (mathLevel?.toFixed ? mathLevel.toFixed(1) : mathLevel));
+  set('notify-elaLevel', (elaLevel?.toFixed ? elaLevel.toFixed(1) : elaLevel));
+  set('notify-summary', summary);
+
+  try { form.submit(); } catch (e) { console.warn('Formspree submit failed', e); }
+}
+
 function initState(grade){
   const pools = buildPools(grade);
   state = {
@@ -462,6 +479,18 @@ function finishTest(){
   const cb = document.getElementById("showStd");
   const box = document.getElementById("stdBox");
   cb?.addEventListener("change", ()=> box.style.display = cb.checked ? "block" : "none");
+
+  /* ---- Send email notification via hidden Formspree form ---- */
+  const summary = `Diagnostic complete | Grade: ${state.grade} | Math: ${mathPct}% (level ${curMathGL.toFixed(1)}) | ELA: ${engPct}% (level ${curEngGL.toFixed(1)}) | Confidence: ${conf}%`;
+  notifyViaFormspree({
+    grade: state.grade,
+    mathPct,
+    engPct,
+    conf,
+    mathLevel: curMathGL,
+    elaLevel: curEngGL,
+    summary
+  });
 }
 
 function renderActionPlan(strandScores){
@@ -511,3 +540,4 @@ export function boot(){
     renderCurrent(mount);
   });
 }
+
