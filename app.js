@@ -1,176 +1,200 @@
 // app.js
-// Minimal student UI; private logging + Formspree alert for instructor.
+// Works with diagnostic-test.html (Start button id=startBtn, mount id=mount, progFill id=progFill)
+// and with the large bank.js you pasted (exports MATH_ITEMS, PASSAGES, LANG_ITEMS).
 
-import { questions } from './bank.js';
+import { MATH_ITEMS, PASSAGES, LANG_ITEMS } from './bank.js';
 
-// ====== CONFIG: put your Formspree form id here (e.g., xabcd123) ======
-const FORMSPREE_ID = 'YOUR_FORMSPREE_ID';
-// =====================================================================
+function el(q, root = document) { return root.querySelector(q); }
+function els(q, root = document) { return [...root.querySelectorAll(q)]; }
+function shuffle(a){ const c=[...a]; for(let i=c.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [c[i],c[j]]=[c[j],c[i]]; } return c; }
 
-// Cache DOM refs up front once boot() runs
-let nameInput, emailInput, startBtn, screenIntro, screenTest, questionEl, optionsEl, nextBtn, screenDone, doneMsg, reportEl, progFillEl;
+// Build a fixed set: 10 Math, 5 Reading (from passages), 5 Language — all filtered by grade
+function buildQuestions(grade){
+  const inGrade = (min,max)=> (g)=> grade >= (min ?? g.grade_min ?? 2) && grade <= (max ?? g.grade_max ?? 8);
 
-// Quiz state
-let currentQuestion = 0;
-let score = 0;
-let log = []; // { q, selected, correct, isCorrect }
+  // --- Math: prefer exact-grade items, fall back to closest
+  const mathPool = MATH_ITEMS.filter(q => grade >= (q.grade_min??2) && grade <= (q.grade_max??8));
+  const math = shuffle(mathPool).slice(0, 10).map(q => ({
+    question: q.stem,
+    choices: q.choices,
+    answer: q.answer,
+    cat: q.strand || 'MATH'
+  }));
 
-// Optional: expose tiny bit of state for external observers
-// (your diagnostic-test.html completion watcher can read this)
-window.state = window.state || {};
-window.state.confidence = 0; // if you compute one later, update here
+  // --- Reading: pick 1–2 passages that include the grade, take 5 total Qs
+  const passPool = PASSAGES.filter(p => {
+    const [lo,hi] = p.grade_band || [2,8];
+    return grade >= lo && grade <= hi;
+  });
+  const pickedPassages = shuffle(passPool).slice(0, Math.min(2, passPool.length));
+  const reading = [];
+  for (const p of pickedPassages){
+    // take up to 5 from first, then fill remainder from next
+    const need = 5 - reading.length;
+    const take = Math.min(need, p.questions.length);
+    const qs = shuffle(p.questions).slice(0, take).map(q => ({
+      question: q.stem,
+      choices: q.choices,
+      answer: q.answer,
+      cat: p.type || 'RL'    // RL or RI
+    }));
+    reading.push(...qs);
+    if (reading.length >= 5) break;
+  }
+  // If not enough (shouldn’t happen), pad from any passage
+  if (reading.length < 5){
+    const any = shuffle(PASSAGES.flatMap(p => p.questions.map(q => ({
+      question: q.stem, choices: q.choices, answer: q.answer, cat: p.type || 'RL'
+    })))).slice(0, 5 - reading.length);
+    reading.push(...any);
+  }
 
-function updateProgress() {
-  if (!progFillEl) return;
-  const pct = Math.round(((currentQuestion) / questions.length) * 100);
-  progFillEl.style.width = `${Math.min(pct, 100)}%`;
+  // --- Language: exact grade where possible
+  const langPool = LANG_ITEMS.filter(q => grade >= (q.grade_min??2) && grade <= (q.grade_max??8));
+  const language = shuffle(langPool).slice(0, 5).map(q => ({
+    question: q.stem,
+    choices: q.choices,
+    answer: q.answer,
+    cat: 'LANG'
+  }));
+
+  return [...math, ...reading, ...language];
 }
 
-function renderQuestion() {
-  const q = questions[currentQuestion];
-  questionEl.textContent = `Pregunta ${currentQuestion + 1} de ${questions.length}: ${q.question}`;
-  optionsEl.innerHTML = '';
+// Small summary helpers for Formspree wrapper
+function summarizeStrands(log){
+  // strands we care about for math vs english buckets
+  const mathCats = new Set(['NO','FR','ALG','GEOM','MD','MATH']);
+  const engCats  = new Set(['RL','RI','LANG']);
 
-  q.options.forEach(opt => {
-    const btn = document.createElement('button');
-    btn.textContent = opt;
-    btn.className = 'option-btn';
-    btn.addEventListener('click', () => onSelect(opt, q.answer));
-    optionsEl.appendChild(btn);
-  });
-
-  // Hide the Next button until an answer is chosen
-  nextBtn.style.display = 'none';
-
-  // Update progress bar for this question index
-  updateProgress();
-}
-
-function onSelect(selected, correct) {
-  const isCorrect = selected === correct;
-  if (isCorrect) score++;
-
-  log.push({
-    q: questions[currentQuestion].question,
-    selected,
-    correct,
-    isCorrect
-  });
-
-  // Lock choices
-  optionsEl.querySelectorAll('.option-btn').forEach(b => (b.disabled = true));
-  nextBtn.style.display = 'inline-block';
-}
-
-async function submitResultsToFormspree() {
-  if (!FORMSPREE_ID || FORMSPREE_ID === 'YOUR_FORMSPREE_ID') return; // skip if not configured
-
-  const lines = log.map((item, i) => {
-    const status = item.isCorrect ? '✔️' : '❌';
-    return `Q${i + 1}. ${item.q}
-- Student: ${item.selected}
-- Correct: ${item.correct}
-- ${status}\n`;
-  });
-
-  const payload = {
-    _subject: `Diagnostic submitted by ${nameInput.value}`,
-    studentName: nameInput.value,
-    studentEmail: emailInput.value || '(no email)',
-    score: `${score} / ${questions.length}`,
-    details: lines.join('\n')
+  const strands = {};
+  for (const row of log){
+    const k = row.cat;
+    if (!strands[k]) strands[k] = [0,0]; // [correct, total]
+    strands[k][1] += 1;
+    if (row.isCorrect) strands[k][0] += 1;
+  }
+  const addSet = (setName, cats) => {
+    let c = 0, t = 0;
+    for (const [k,[ck,tk]] of Object.entries(strands)){
+      if (cats.has(k)) { c += ck; t += tk; }
+    }
+    return [c,t];
   };
+  strands.MATH_TOTAL = addSet('math', mathCats);
+  strands.ENG_TOTAL  = addSet('eng', engCats);
+  return strands;
+}
 
-  const res = await fetch(`https://formspree.io/f/${FORMSPREE_ID}`, {
-    method: 'POST',
-    headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload)
-  });
+export function boot(){
+  const startBtn = el('#startBtn');
+  const mount    = el('#mount');
+  const progFill = el('#progFill');
+  const gradeSel = el('#grade');
 
-  if (!res.ok) {
-    throw new Error('Formspree error');
+  const state = {
+    grade: Number(gradeSel?.value || 5),
+    idx: 0,
+    items: [],
+    log: [],           // { q, selected, correct, isCorrect, cat }
+    strands: {}        // filled at the end for the notifier
+  };
+  window.state = state; // expose to the notifier
+
+  function setProg(){
+    const pct = Math.round((state.idx / state.items.length) * 100);
+    if (progFill) progFill.style.width = `${pct}%`;
   }
-}
 
-function renderFinalReport() {
-  // Write a human-friendly summary into #report so your completion watcher can detect it.
-  // (No itemized right/wrong is shown to the student here.)
-  if (!reportEl) return;
-  const pct = Math.round((score / questions.length) * 100);
-  const grade = document.getElementById('grade')?.value ?? '';
-  // Keep this text verbose (40+ chars) so MutationObserver considers it "done".
-  reportEl.innerHTML = `
-    <div class="summary">
-      <h3>Diagnostic Summary</h3>
-      <p>Grade: <strong>${grade}</strong></p>
-      <p>Overall score: <strong>${score}/${questions.length}</strong> (${pct}%).</p>
-      <p>Thanks! Your responses have been recorded.</p>
-    </div>
-  `;
+  function renderQ(){
+    const q = state.items[state.idx];
+    if (!q){ return finish(); }
+    setProg();
 
-  // Fill progress to 100% for any observers that rely on the bar
-  if (progFillEl) progFillEl.style.width = '100%';
-}
-
-function showDone(message) {
-  screenTest.style.display = 'none';
-  screenDone.style.display = 'block';
-  doneMsg.textContent = message || '¡Gracias! Tu diagnóstico fue enviado.';
-}
-
-async function finish() {
-  try {
-    await submitResultsToFormspree();
-    renderFinalReport();
-    showDone();
-  } catch (e) {
-    console.warn('Submit failed:', e);
-    renderFinalReport();
-    showDone('Se envió el examen, pero hubo un problema al notificar. Avísale al profesor.');
+    mount.innerHTML = `
+      <div class="qcard">
+        <div class="qnum">Question ${state.idx + 1} of ${state.items.length}</div>
+        <div class="qstem">${q.question}</div>
+        <div class="qopts"></div>
+      </div>
+    `;
+    const optsBox = el('.qopts', mount);
+    q.choices.forEach(choice => {
+      const b = document.createElement('button');
+      b.className = 'option-btn';
+      b.textContent = choice;
+      b.addEventListener('click', () => choose(choice));
+      optsBox.appendChild(b);
+    });
   }
-}
 
-// Public boot (called by diagnostic-test.html)
-export function boot() {
-  // Wire refs
-  nameInput   = document.getElementById('studentName');
-  emailInput  = document.getElementById('studentEmail');
-  startBtn    = document.getElementById('start');
-  screenIntro = document.getElementById('screen-intro');
+  function choose(choice){
+    const q = state.items[state.idx];
+    const correct = q.answer;
+    const isCorrect = String(choice) === String(correct);
 
-  screenTest  = document.getElementById('screen-test');
-  questionEl  = document.getElementById('question');
-  optionsEl   = document.getElementById('options');
-  nextBtn     = document.getElementById('next');
+    state.log.push({
+      q: q.question, selected: choice, correct, isCorrect, cat: q.cat
+    });
 
-  screenDone  = document.getElementById('screen-done');
-  doneMsg     = document.getElementById('done-msg');
-  reportEl    = document.getElementById('report');
-  progFillEl  = document.getElementById('progFill');
+    // lock
+    els('.option-btn', mount).forEach(b=>{
+      b.disabled = true;
+      if (b.textContent === String(correct)) b.classList.add('correct');
+      if (b.textContent === String(choice) && !isCorrect) b.classList.add('incorrect');
+    });
 
-  // Start
+    // short pause then next
+    setTimeout(() => {
+      state.idx++;
+      if (state.idx < state.items.length) {
+        renderQ();
+      } else {
+        finish();
+      }
+    }, 500);
+  }
+
+  function start(){
+    state.grade = Number(gradeSel?.value || 5);
+    state.items = buildQuestions(state.grade);
+    state.idx = 0;
+    state.log = [];
+    setProg();
+    renderQ();
+  }
+
+  function finish(){
+    setProg();
+    // compute strand buckets for notifier
+    state.strands = summarizeStrands(state.log);
+
+    // simple thank-you view
+    const correct = state.log.filter(r=>r.isCorrect).length;
+    mount.innerHTML = `
+      <div class="summary">
+        <h3>All done!</h3>
+        <p>You answered <strong>${correct}</strong> of <strong>${state.items.length}</strong> correctly.</p>
+        <p>Your teacher will receive a detailed report.</p>
+      </div>
+    `;
+
+    // call the wrapper in diagnostic-test.html
+    if (typeof window.finishTest === 'function') {
+      window.finishTest();
+    }
+  }
+
+  // Wire Start button (keep your visual change)
   startBtn?.addEventListener('click', () => {
-    if (!nameInput.value.trim()) {
-      alert('Por favor, escribe tu nombre.');
-      return;
-    }
-    // Reset state in case someone restarts without reload
-    currentQuestion = 0;
-    score = 0;
-    log = [];
-
-    screenIntro.style.display = 'none';
-    screenTest.style.display = 'block';
-    renderQuestion();
+    startBtn.setAttribute('disabled','true');
+    startBtn.textContent = 'Test Started…';
+    start();
   });
 
-  // Next
-  nextBtn?.addEventListener('click', () => {
-    currentQuestion++;
-    if (currentQuestion < questions.length) {
-      renderQuestion();
-    } else {
-      finish();
-    }
+  // if someone changes the grade before starting, reflect it in state
+  gradeSel?.addEventListener('change', e => {
+    state.grade = Number(e.target.value || 5);
   });
 }
+
