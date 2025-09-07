@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Ripa Diagnostic — Baseline</title>
+  <title>Ripa Diagnostic — Test</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link href="./styles.css" rel="stylesheet" />
 </head>
@@ -26,12 +26,17 @@
           <div style="margin-top:10px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
             <label class="label" for="grade">Grade</label>
             <select id="grade" class="btn" style="padding:10px 12px">
-              <option>2</option><option>3</option><option>4</option>
-              <option selected>5</option><option>6</option><option>7</option><option>8</option>
+              <option value="2">2</option>
+              <option value="3">3</option>
+              <option value="4">4</option>
+              <option value="5">5</option>
+              <option value="6">6</option>
+              <option value="7" selected>7</option>
+              <option value="8">8</option>
             </select>
 
             <label class="label" for="studentName">Name</label>
-            <input id="studentName" class="btn" style="padding:10px 12px" placeholder="Student name" />
+            <input id="studentName" class="btn" placeholder="Student name" style="padding:10px 12px" />
 
             <button id="startBtn" class="btn primary" type="button">Start Test</button>
           </div>
@@ -57,19 +62,18 @@
 
     <section id="report" class="panel"></section>
 
-    <!-- Hidden instructor notification -->
+    <!-- Hidden completion notify form (Formspree) -->
     <form id="notifyForm" action="https://formspree.io/f/mzzvlgge" method="POST" style="display:none">
       <input type="hidden" name="_subject" value="Ripa Diagnostic: Student Completed" />
-      <input type="text"    name="_gotcha" style="display:none" tabindex="-1" autocomplete="off" />
-      <input type="hidden" name="studentName" id="notify-name" />
-      <input type="hidden" name="grade"       id="notify-grade" />
-      <input type="hidden" name="mathPct"     id="notify-mathPct" />
-      <input type="hidden" name="engPct"      id="notify-engPct" />
-      <input type="hidden" name="mathLevel"   id="notify-mathLevel" />
-      <input type="hidden" name="elaLevel"    id="notify-elaLevel" />
-      <input type="hidden" name="confidence"  id="notify-confidence" />
-      <input type="hidden" name="details"     id="notify-details" />
-      <input type="hidden" name="summary"     id="notify-summary" />
+      <input type="text"   name="_gotcha" style="display:none" tabindex="-1" autocomplete="off" />
+      <input type="hidden" name="grade"        id="notify-grade" />
+      <input type="hidden" name="mathPct"      id="notify-mathPct" />
+      <input type="hidden" name="engPct"       id="notify-engPct" />
+      <input type="hidden" name="confidence"   id="notify-confidence" />
+      <input type="hidden" name="mathLevel"    id="notify-mathLevel" />
+      <input type="hidden" name="elaLevel"     id="notify-elaLevel" />
+      <input type="hidden" name="summary"      id="notify-summary" />
+      <input type="hidden" name="studentName"  id="notify-student" />
     </form>
   </main>
 
@@ -79,6 +83,7 @@
     </p>
   </noscript>
 
+  <!-- IMPORTANT: load the app directly; no import of a boot() that doesn't exist -->
   <script type="module" src="./app.js"></script>
 </body>
 </html>
