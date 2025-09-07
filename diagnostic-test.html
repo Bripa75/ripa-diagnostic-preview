@@ -6,7 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link href="./styles.css" rel="stylesheet" />
   <style>
-    #errBanner{display:none;margin:12px 0;padding:10px 12px;border-radius:8px;background:#3b0d0d;color:#ffd7d7;border:1px solid #a33;}
+    #errBanner{display:none;margin:12px 0;padding:10px 12px;border-radius:8px;background:#3b0d0d;color:#ffd7d7;border:1px solid #a33}
   </style>
 </head>
 <body>
@@ -85,8 +85,17 @@
     </p>
   </noscript>
 
-  <!-- Direct module load (fixes dynamic import/CSP issues) -->
+  <!-- IMPORTANT: use a direct module src (no dynamic import) -->
   <script type="module" src="./app.js"></script>
+
+  <!-- Show a visible banner if any runtime error occurs -->
+  <script>
+    window.addEventListener('error', (e)=>{
+      const b=document.getElementById('errBanner');
+      b.style.display='block';
+      b.textContent = 'Runtime error: ' + (e?.message || 'Unknown error');
+    });
+  </script>
 </body>
 </html>
 
