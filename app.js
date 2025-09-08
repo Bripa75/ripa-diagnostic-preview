@@ -1,8 +1,4 @@
 // app.js — Adaptive 20-item path (10 Math → 10 English). Grades 2–8.
-// Difficulty moves after 3-in-a-row (up or down). Adjacent-band fallback only.
-// Math coverage: 10 slots = 2× each strand (NO, FR, ALG, GEOM, MD), shuffled, no adjacents.
-// English coverage: 10 slots = 4× RL, 4× RI, 2× LANG, shuffled, avoid adjacents.
-// Report shows current levels (decimals), expected vs grade, confidence %, strengths/priorities chips, standards toggle.
 
 import { DIFF, MATH_ITEMS, PASSAGES, LANG_ITEMS } from './bank.js';
 
@@ -90,7 +86,7 @@ function buildMathPlan(){
     const j = Math.floor(Math.random() * (i + 1));
     [plan[i], plan[j]] = [plan[j], plan[i]];
   }
-  // fix accidental adjacents
+  // avoid adjacents
   for (let i=1; i<plan.length; i++){
     if (plan[i] === plan[i-1]){
       const swapWith = (i+1 < plan.length) ? i+1 : i-2;
@@ -120,7 +116,7 @@ function buildEnglishPlan(){
   return plan;
 }
 
-/* ---------------- Strand/domain-aware picker with adjacent fallback only ---------------- */
+/* ---------------- Strand/domain-aware picker with fallback ---------------- */
 function takeFromWithKey(poolMap, wantDiff, usedIds, seenSet, keyField, keyValue){
   const order = wantDiff===DIFF.CORE ? [DIFF.CORE, DIFF.ON]
               : wantDiff===DIFF.ON   ? [DIFF.ON, DIFF.CORE, DIFF.STRETCH]
@@ -171,7 +167,6 @@ function notifyViaFormspree({ grade, mathPct, engPct, conf, mathLevel, elaLevel,
   set('notify-mathLevel', (mathLevel?.toFixed ? mathLevel.toFixed(1) : mathLevel));
   set('notify-elaLevel', (elaLevel?.toFixed ? elaLevel.toFixed(1) : elaLevel));
   set('notify-summary', summary);
-
   try { form.submit(); } catch (e) { console.warn('Formspree submit failed', e); }
 }
 
@@ -195,9 +190,8 @@ function initState(grade){
 
     pools,
     current: null,
-    lastDiffs: [], // for confidence/flavor
+    lastDiffs: [],
 
-    // hysteresis buffers + coverage plans
     mathBuf: 0,
     engBuf: 0,
     mathPlan: buildMathPlan(),
@@ -213,12 +207,14 @@ function el(tag, attrs={}, children=[]){
   Object.entries(attrs).forEach(([k,v])=>{
     if (k==="class") node.className = v;
     else if (k.startsWith("on") && typeof v==="function") {
-      node.addEventListener(k.substring(2).toLowerCase(), v); // normalize event names
+      node.addEventListener(k.substring(2).toLowerCase(), v);
     } else node.setAttribute(k,v);
   });
   (Array.isArray(children)?children:[children]).forEach(c=> node.append(c instanceof Node ? c : document.createTextNode(String(c))));
   return node;
 }
+
+// ✅ keep only THIS progress function (remove duplicates)
 function setProgress(){
   const pf = document.getElementById("progFill");
   if (!pf || !state) return;
@@ -226,7 +222,7 @@ function setProgress(){
   pf.style.width = `${Math.min(100, Math.round(ratio*100))}%`;
 }
 
-/* ---------------- Render current (strict phase + guaranteed passage) ---------------- */
+/* ---------------- Render current ---------------- */
 function renderCurrent(container){
   container.innerHTML = "";
   if (!state) return;
@@ -234,14 +230,12 @@ function renderCurrent(container){
   const isMath = state.phase === "math";
   const domainLabel = isMath ? "Math" : "English";
 
-  // Always show “of 10” per phase
   container.append(
     el("div",{class:"label"}, `${domainLabel} Question ${state.answeredInPhase+1} of ${state.targetInPhase}`)
   );
 
   const seen = loadSeen(state.grade, state.phase);
 
-  // Coverage-aware picking
   let picked;
   if (isMath){
     const wantStrand = state.mathPlan[state.mathPlanIdx] || "NO";
@@ -254,7 +248,6 @@ function renderCurrent(container){
   const item = picked.item;
   if (!item){ advancePhaseOrFinish(container); return; }
 
-  // Validate; retry once if needed (still avoids used)
   if (!validateItem(item)){
     const retry = isMath
       ? takeFromWithKey(state.pools.mathByDiff, state.mathDiff, state.usedIds, new Set(), "strand", state.mathPlan[state.mathPlanIdx])
@@ -265,7 +258,6 @@ function renderCurrent(container){
     state.current = item;
   }
 
-  // Hard guard by phase
   if (isMath && !["NO","FR","ALG","GEOM","MD"].includes(state.current.strand)){
     advancePhaseOrFinish(container); return;
   }
@@ -276,7 +268,6 @@ function renderCurrent(container){
   state.usedIds.add(state.current.id);
   addSeen(state.grade, state.phase, state.current.id);
 
-  // Always render passage/context for English items
   if (!isMath && state.current.context){
     container.append(el("div",{class:"passage"}, state.current.context));
   }
@@ -291,7 +282,6 @@ function renderCurrent(container){
   li.append(wrap);
   container.append(li);
 
-  // Advance coverage index after rendering
   if (isMath){
     state.mathPlanIdx = Math.min(state.mathPlanIdx + 1, state.targetInPhase - 1);
   } else {
@@ -349,24 +339,22 @@ function levelForPct(p){
   return {level:1, label:"Below Grade Level"};
 }
 function estimateGradeLevel(pctScore, gradeRef){
-  // Smooth decimal level like 2.2, 5.7 etc; 50% ≈ gradeRef, ±0.5 spread
   const gl = gradeRef - 0.5 + (pctScore/100);
   return Math.round(gl*10)/10;
 }
 function confidencePct(mathPct, engPct){
-  // Based on completeness, difficulty trend, and separation from guess band
-  const completeness = state.total / state.totalTarget;         // 0..1
-  const trend = clamp((state.lastDiffs.slice(-6).reduce((a,b)=>a+b,0)/ (6*3)) || 0, 0, 1); // last 6 diffs avg / 3
-  const separation = (Math.abs(mathPct-50) + Math.abs(engPct-50)) / 100; // 0..1
+  const completeness = state.total / state.totalTarget;
+  const trend = clamp((state.lastDiffs.slice(-6).reduce((a,b)=>a+b,0)/ (6*3)) || 0, 0, 1);
+  const separation = (Math.abs(mathPct-50) + Math.abs(engPct-50)) / 100;
   const raw = 0.35*completeness + 0.35*trend + 0.30*separation;
-  return Math.round(clamp(40 + raw*60, 40, 95)); // 40–95%
+  return Math.round(clamp(40 + raw*60, 40, 95));
 }
 const TAGS = {
   NO:["place-value","integers"],
   FR:["fractions","percent"],
   ALG:["equations","functions"],
   GEOM:["geometry","area"],
-  MD:["data","measurement"],
+  MD: ["data","measurement"],
   RL:["reading","theme"],
   RI:["reading","main-idea"],
   LANG:["vocab","conventions"]
@@ -492,12 +480,10 @@ function finishTest(){
     <div class="examMuted" style="margin-top:12px">Mini-FAQ: Grades 2–8 • Length: 20 adaptive questions • Private: runs in the browser; only results you submit are saved.</div>
   `;
 
-  // toggle standards details
   const cb = document.getElementById("showStd");
   const box = document.getElementById("stdBox");
   cb?.addEventListener("change", ()=> box.style.display = cb.checked ? "block" : "none");
 
-  /* ---- Send email notification via hidden Formspree form ---- */
   const summary = `Diagnostic complete | Grade: ${state.grade} | Math: ${mathPct}% (level ${curMathGL.toFixed(1)}) | ELA: ${engPct}% (level ${curEngGL.toFixed(1)}) | Confidence: ${conf}%`;
   notifyViaFormspree({
     grade: state.grade,
@@ -557,4 +543,12 @@ export function boot(){
   });
 }
 
+// ✅ self-boot so the Start handler is always attached
+if (typeof window !== 'undefined') {
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', boot);
+  } else {
+    boot();
+  }
+}
 
