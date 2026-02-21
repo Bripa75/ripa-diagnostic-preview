@@ -42,11 +42,21 @@ function qIndexToDiff(i){ return i<=1 ? DIFF.CORE : i<=3 ? DIFF.ON : DIFF.STRETC
 
 /* Build grade-scoped pools */
 function buildPools(grade){
+  // Adaptive stretch: allow some next-grade items in STRETCH.
+  // Example: a strong 2nd grader can see some 3rd grade questions.
+  const nextGrade = Math.min(8, grade + 1);
+
   const mathByDiff = {
     [DIFF.CORE]:    MATH_ITEMS.filter(it => it.diff===DIFF.CORE    && between(grade, it.grade_min, it.grade_max)),
     [DIFF.ON]:      MATH_ITEMS.filter(it => it.diff===DIFF.ON      && between(grade, it.grade_min, it.grade_max)),
     [DIFF.STRETCH]: MATH_ITEMS.filter(it => it.diff===DIFF.STRETCH && between(grade, it.grade_min, it.grade_max)),
   };
+
+  if (nextGrade !== grade){
+    const nextMath = MATH_ITEMS.filter(it => between(nextGrade, it.grade_min, it.grade_max));
+    // Push next-grade items into STRETCH regardless of their original diff.
+    mathByDiff[DIFF.STRETCH].push(...nextMath.map(it => ({ ...it, diff: DIFF.STRETCH })));
+  }
 
   const englishPool = { [DIFF.CORE]:[], [DIFF.ON]:[], [DIFF.STRETCH]:[] };
   PASSAGES.forEach(p=>{
@@ -69,14 +79,28 @@ function buildPools(grade){
     });
   });
 
+  if (nextGrade !== grade){
+    const nextLang = LANG_ITEMS.filter(it => between(nextGrade, it.grade_min, it.grade_max));
+    englishPool[DIFF.STRETCH].push(...nextLang.map(it => ({
+      id:`E-LANG-${it.id}`,
+      domain:"LANG",
+      diff:DIFF.STRETCH,
+      stem:it.stem,
+      choices:it.choices,
+      answer:it.answer,
+      context:null
+    })));
+  }
+
   return { mathByDiff, englishPool };
 }
 
-/* ---------------- Difficulty buffer: 3-in-a-row to move ---------------- */
-function adjustDiff3(curDiff, buf, isCorrect){
-  const nextBuf = isCorrect ? Math.min(3, buf + 1) : Math.max(-3, buf - 1);
-  if (nextBuf >= 3)  return { diff: (curDiff===DIFF.CORE ? DIFF.ON : DIFF.STRETCH), buf: 0 };
-  if (nextBuf <= -3) return { diff: (curDiff===DIFF.STRETCH ? DIFF.ON : DIFF.CORE), buf: 0 };
+/* ---------------- Difficulty buffer: 2-in-a-row to move ---------------- */
+// +2 correct in a row → bump difficulty; -2 wrong in a row → drop.
+function adjustDiff2(curDiff, buf, isCorrect){
+  const nextBuf = isCorrect ? Math.min(2, buf + 1) : Math.max(-2, buf - 1);
+  if (nextBuf >= 2)  return { diff: (curDiff===DIFF.CORE ? DIFF.ON : DIFF.STRETCH), buf: 0 };
+  if (nextBuf <= -2) return { diff: (curDiff===DIFF.STRETCH ? DIFF.ON : DIFF.CORE), buf: 0 };
   return { diff: curDiff, buf: nextBuf };
 }
 
@@ -319,13 +343,13 @@ function answer(chosen){
   if (state.phase==="math"){
     const strand = item.strand || "NO";
     state.strands[strand][1]++; if (isCorrect) state.strands[strand][0]++;
-    const upd = adjustDiff3(state.mathDiff, state.mathBuf, isCorrect);
+    const upd = adjustDiff2(state.mathDiff, state.mathBuf, isCorrect);
     state.mathDiff = upd.diff; state.mathBuf = upd.buf;
     state.lastDiffs.push(diffToScore(state.mathDiff));
   } else {
     const dom = item.domain || "RL";
     state.strands[dom][1]++; if (isCorrect) state.strands[dom][0]++;
-    const upd = adjustDiff3(state.engDiff, state.engBuf, isCorrect);
+    const upd = adjustDiff2(state.engDiff, state.engBuf, isCorrect);
     state.engDiff = upd.diff; state.engBuf = upd.buf;
     state.lastDiffs.push(diffToScore(state.engDiff));
   }
@@ -699,4 +723,3 @@ if (typeof window !== 'undefined') {
     boot();
   }
 }
-
