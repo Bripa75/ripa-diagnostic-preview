@@ -494,6 +494,39 @@ export const MATH_ITEMS = [];
   mc(3,'GEOM',DIFF.CORE,'Which shape is a quadrilateral?','rectangle',['triangle','rectangle','pentagon','hexagon']);
   mc(3,'GEOM',DIFF.ON,'How many vertices does a pentagon have?','5',['4','5','6','8']);
   mc(3,'GEOM',DIFF.STRETCH,'A shape is split into 8 equal parts. One part is called…','1/8',['1/4','1/6','1/8','8/1']);
+
+  // ===== Grade 4 (new foundation – keep grades 5–8 unchanged) =====
+  // Number & Operations (4.NBT)
+  mc(4,'NO',DIFF.CORE,'What is 36,405 rounded to the nearest thousand?','36,000',['35,000','36,000','36,400','37,000']);
+  mc(4,'NO',DIFF.CORE,'What is 8,372 − 1,958?','6,414',['6,314','6,414','6,514','6,614']);
+  mc(4,'NO',DIFF.ON,'What is 4,680 + 2,395?','7,075',['6,975','7,075','7,175','7,275']);
+  mc(4,'NO',DIFF.ON,'Which number is the greatest?','503,210',['503,120','503,201','503,210','503,012']);
+  mc(4,'NO',DIFF.STRETCH,'Estimate 298 × 7 by rounding 298 to the nearest hundred.','2,100',['1,400','2,000','2,100','2,800']);
+
+  // Operations & Algebraic Thinking (4.OA)
+  mc(4,'ALG',DIFF.CORE,'Interpret: 6 × 4 means…','6 groups of 4',['6 + 4','4 − 6','6 groups of 4','6 divided by 4']);
+  mc(4,'ALG',DIFF.CORE,'A coat costs 3 times as much as a hat. A hat costs $12. How much is the coat?','$36',['$15','$24','$36','$48']);
+  mc(4,'ALG',DIFF.ON,'What is 23 × 6?','138',['128','132','138','148']);
+  mc(4,'ALG',DIFF.ON,'What is 864 ÷ 6?','144',['124','134','144','154']);
+  mc(4,'ALG',DIFF.STRETCH,'Two-step: A store sold 6 boxes of pencils. Each box had 24 pencils. They had 150 pencils at first. How many pencils are left?','6',['4','6','8','10']);
+
+  // Fractions (4.NF)
+  mc(4,'FR',DIFF.CORE,'Which fraction is equivalent to 3/6?','1/2',['1/3','1/2','2/3','3/4']);
+  mc(4,'FR',DIFF.CORE,'Which is greater?','5/8',['1/2','5/8','3/8','They are equal']);
+  mc(4,'FR',DIFF.ON,'What is 3/8 + 2/8?','5/8',['4/8','5/8','6/8','7/8']);
+  mc(4,'FR',DIFF.ON,'What is 2 3/5 − 1 1/5?','1 2/5',['1 1/5','1 2/5','1 3/5','2 2/5']);
+  mc(4,'FR',DIFF.STRETCH,'Convert 7/10 to an equivalent fraction with denominator 100.','70/100',['7/100','17/100','70/100','700/100']);
+
+  // Measurement & Data (4.MD)
+  mc(4,'MD',DIFF.CORE,'Convert 3 feet to inches.','36',['9','12','24','36']);
+  mc(4,'MD',DIFF.ON,'A rectangle has length 9 units and width 4 units. What is the area?','36',['13','18','36','40']);
+  mc(4,'MD',DIFF.ON,'A rectangle has perimeter 26 units. If one side is 7 units, what is the other side?','6',['5','6','7','8']);
+  mc(4,'MD',DIFF.STRETCH,'A movie starts at 2:35 and ends at 4:05. How long is the movie?','1 hour 30 minutes',['1 hour 20 minutes','1 hour 30 minutes','1 hour 40 minutes','2 hours']);
+
+  // Geometry (4.G)
+  mc(4,'GEOM',DIFF.CORE,'Which angle is obtuse?','120°',['45°','90°','120°','180°']);
+  mc(4,'GEOM',DIFF.ON,'Which pair of lines is perpendicular?','Lines that meet to form a right angle',['Lines that never meet','Lines that are curved','Lines that meet to form a right angle','Lines that are the same line']);
+  mc(4,'GEOM',DIFF.STRETCH,'How many lines of symmetry does a square have?','4',['1','2','3','4']);
 })();
 
 // ================== Reading Passages ==================
@@ -574,6 +607,26 @@ When the captain blew the horn, Lena jumped—but smiled. The sound felt like a 
       {id:"Q6", stem:"Which shows setting most?", choices:["Mist around the deck","She smiled","Captain spoke","She stood"], answer:"Mist around the deck"}
     ]
   },
+  // RL 4–5 (second medium passage)
+  {
+    id:"RL-4B", grade_band:[4,5], type:"RL",
+    text:`Nina wanted to learn the skateboard trick called an ollie. After school, she practiced in the empty parking lot.
+At first, the board clacked loudly and shot away from her feet. Nina sighed, then tried again. She watched her shadow
+to check her posture and paid attention to where her knees bent. Each attempt was a little better.
+
+On Friday, her friend Mateo came to cheer her on. “Pick one small goal,” he said. “Just get the front wheels to lift.”
+Nina nodded. She focused on that one part, and the board finally hopped—only an inch, but it was real.
+
+Nina laughed and held up her hand for a high-five. “Next week,” she said, “I’m going for two inches.”`,
+    questions:[
+      {id:"Q1", stem:"What is Nina trying to do?", choices:["Learn an ollie","Win a race","Build a ramp","Fix a bike"], answer:"Learn an ollie"},
+      {id:"Q2", stem:"Which detail shows Nina is improving?", choices:["The board clacked loudly.","Each attempt was a little better.","She practiced after school.","The parking lot was empty."], answer:"Each attempt was a little better."},
+      {id:"Q3", stem:"What advice does Mateo give?", choices:["Stop practicing","Buy a new board","Pick one small goal","Practice only on weekends"], answer:"Pick one small goal"},
+      {id:"Q4", stem:"Why does Nina watch her shadow?", choices:["To see the time","To check her posture","To find Mateo","To scare birds"], answer:"To check her posture"},
+      {id:"Q5", stem:"How does Nina feel at the end?", choices:["Proud and excited","Embarrassed","Angry","Bored"], answer:"Proud and excited"},
+      {id:"Q6", stem:"Theme best supported by the story:", choices:["Small steps lead to progress.","Luck matters most.","Friends always agree.","Practice is pointless."], answer:"Small steps lead to progress."}
+    ]
+  },
   // --- PATCH: RI 4–5 (added) ---
   {
     id:"RI-5A", grade_band:[4,5], type:"RI",
@@ -585,6 +638,28 @@ When the captain blew the horn, Lena jumped—but smiled. The sound felt like a 
       {id:"Q4", stem:"Which graphic would help most?", choices:["Rainfall bar chart","A poem","A recipe","A song"], answer:"Rainfall bar chart"},
       {id:"Q5", stem:"Meaning of 'adapt' here:", choices:["Change to survive","Move away","Sleep","Complain"], answer:"Change to survive"},
       {id:"Q6", stem:"Evidence for plant strategies:", choices:["Thick stems and quick life cycles after rain.","They are blue.","They are tall.","They are pets."], answer:"Thick stems and quick life cycles after rain."}
+    ]
+  },
+  // RI 4–5 (second medium passage)
+  {
+    id:"RI-4B", grade_band:[4,5], type:"RI",
+    text:`If you’ve ever noticed a patch of moss on a sidewalk, you’ve seen a plant that likes moisture and shade.
+Mosses do not have flowers or seeds like many other plants. Instead, they reproduce using tiny spores.
+Spores are much smaller than seeds and can be carried by wind, water, or animals.
+
+Because mosses do not have deep roots, they absorb water through their leaves. That is why moss often grows in places
+that stay damp, such as near streams, on rocks, or on the north side of trees. Moss can also help the environment.
+It can slow down water as it runs over the ground, which may reduce erosion.
+
+People sometimes use moss in gardens to create soft, green ground cover. However, moss is sensitive. If it dries out
+for too long or is stepped on often, it may stop growing.`,
+    questions:[
+      {id:"Q1", stem:"What is the main idea of the passage?", choices:["Moss grows best in hot deserts.","Moss has deep roots.","Moss has special features that help it live in damp places.","Moss is dangerous to people."], answer:"Moss has special features that help it live in damp places."},
+      {id:"Q2", stem:"How do mosses reproduce, according to the passage?", choices:["With seeds","With spores","With fruit","With pinecones"], answer:"With spores"},
+      {id:"Q3", stem:"Why does moss often grow in damp areas?", choices:["It needs deep soil.","It absorbs water through its leaves.","It makes its own rain.","It only grows near people."], answer:"It absorbs water through its leaves."},
+      {id:"Q4", stem:"What does the word erosion mean in this passage?", choices:["The ground wearing away","The ground turning to ice","The ground getting taller","The ground growing plants"], answer:"The ground wearing away"},
+      {id:"Q5", stem:"Which detail supports the idea that moss is sensitive?", choices:["Moss is green.","Moss grows near streams.","If it dries out for too long, it may stop growing.","Spores can be carried by wind."], answer:"If it dries out for too long, it may stop growing."},
+      {id:"Q6", stem:"Which heading best fits this passage?", choices:["How to Train a Dog","All About Moss","The Fastest Cars","The History of Skateboards"], answer:"All About Moss"}
     ]
   },
   // --- PATCH: RL 6 (added) ---
