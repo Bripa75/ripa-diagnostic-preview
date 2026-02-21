@@ -48,6 +48,13 @@
             <label class="label" for="studentName">Name</label>
             <input id="studentName" class="btn" placeholder="(optional)" style="padding:10px 12px" />
 
+            <label class="label" for="parentEmail">Parent email</label>
+            <input id="parentEmail" type="email" class="btn" placeholder="(optional)" style="padding:10px 12px; min-width:260px" />
+
+            <label style="display:flex;align-items:center;gap:8px;font-size:12px;color:#aeb8d6">
+              <input id="consent" type="checkbox" /> I have permission to email this report
+            </label>
+
             <button id="startBtn" class="btn primary" type="button">Start Test</button>
           </div>
 
@@ -84,6 +91,7 @@
       <input type="hidden" name="elaLevel"     id="notify-elaLevel" />
       <input type="hidden" name="summary"      id="notify-summary" />
       <input type="hidden" name="studentName"  id="notify-student" />
+      <input type="hidden" name="parentEmail"  id="notify-parentEmail" />
     </form>
   </main>
 

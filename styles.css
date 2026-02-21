@@ -128,3 +128,11 @@ footer{border-top:1px solid var(--stroke);color:var(--muted);padding:28px 0 50px
 }
 .stem{font-size:18px;margin:8px 0 4px}
 
+
+
+@media print {
+  .bg-gradient, #fx, header, nav, .progBar { display:none !important; }
+  body { background:#fff !important; color:#000 !important; }
+  .panel, .examCard, .statCard { box-shadow:none !important; border:1px solid #ddd !important; }
+  .btn, .btnGhost { display:none !important; }
+}

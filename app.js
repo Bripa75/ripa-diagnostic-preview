@@ -5,6 +5,9 @@ import { DIFF, MATH_ITEMS, PASSAGES, LANG_ITEMS } from './bank.js';
 /* ---------------- Config ---------------- */
 const TARGET = { math: 10, english: 10 }; // per student
 
+const NOTIFY_THROTTLE_MS = 2 * 60 * 1000; // 2 minutes
+const NOTIFY_TS_KEY = "ripa_notify_last_ts_v1";
+
 /* ---------------- Rotation (per grade/phase) ---------------- */
 const SEEN_PREFIX = "ripa_seen_v1";
 function loadSeen(grade, phase){
@@ -159,6 +162,17 @@ function notifyViaFormspree({ grade, mathPct, engPct, conf, mathLevel, elaLevel,
   const form = document.getElementById('notifyForm');
   if (!form) return; // no-op if the form isn't on the page
 
+  // basic client-side throttling (prevents spam / double-submits)
+  try {
+    const last = Number(localStorage.getItem(NOTIFY_TS_KEY) || 0);
+    const now = Date.now();
+    if (now - last < NOTIFY_THROTTLE_MS) {
+      console.info("Too soon to notify again; skipping Formspree submit.");
+      return;
+    }
+    localStorage.setItem(NOTIFY_TS_KEY, String(now));
+  } catch {}
+
   const set = (id, val) => { const el = document.getElementById(id); if (el) el.value = String(val); };
   set('notify-grade', grade);
   set('notify-mathPct', mathPct);
@@ -167,14 +181,18 @@ function notifyViaFormspree({ grade, mathPct, engPct, conf, mathLevel, elaLevel,
   set('notify-mathLevel', (mathLevel?.toFixed ? mathLevel.toFixed(1) : mathLevel));
   set('notify-elaLevel', (elaLevel?.toFixed ? elaLevel.toFixed(1) : elaLevel));
   set('notify-summary', summary);
+  set('notify-student', studentName || '');
+  set('notify-parentEmail', parentEmail || '');
   try { form.submit(); } catch (e) { console.warn('Formspree submit failed', e); }
 }
 
 /* ---------------- Init ---------------- */
-function initState(grade){
+function initState(grade, studentName, parentEmail){
   const pools = buildPools(grade);
   state = {
     grade,
+    studentName: studentName || "",
+    parentEmail: parentEmail || "",
     phase: "math",
     targetInPhase: TARGET.math,
     answeredInPhase: 0,
@@ -472,6 +490,15 @@ function finishTest(){
       <p class="examMuted" style="margin-top:8px">Structure: Mini-lesson (8–10m) → Guided (15m) → Independent (15m) → 2–3Q exit ticket.</p>
     </div>
 
+    <div class="statCard" style="margin-top:12px">
+      <div class="label">Next step (optional)</div>
+      <div class="mini">Want a quick walkthrough of these results and a personalized plan?</div>
+      <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
+        <a class="btn primary" href="mailto:ripaelevateacademy@gmail.com?subject=Diagnostic%20Review%20Call&body=Hi%20Brian%2C%20I%20just%20finished%20the%20diagnostic%20and%20would%20like%20a%20quick%20review%20call." style="text-decoration:none">Book a 15‑min review</a>
+        <span class="btnGhost" style="pointer-events:none">Detailed report (coming soon)</span>
+      </div>
+    </div>
+
     <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
       <button class="btnGhost" id="dlBtn">Download PDF</button>
       <button class="btnGhost" id="sendBtn">Send to Tutor</button>
@@ -527,16 +554,137 @@ function renderActionPlan(strandScores){
   `;
 }
 
+/* ---------------- Report actions (PDF + email) ---------------- */
+function buildEmailBody({ studentName, grade, mathPct, engPct, conf, curMathGL, curEngGL, strengths, priorities, actionPlanText }) {
+  const nameLine = studentName ? `Student: ${studentName}` : "Student: (not provided)";
+  return [
+    "Ripa Diagnostic — Instant Report",
+    nameLine,
+    `Grade reference: ${grade}`,
+    "",
+    `Math: ${mathPct}% (est. level ${curMathGL.toFixed(1)})`,
+    `ELA:  ${engPct}% (est. level ${curEngGL.toFixed(1)})`,
+    `Overall confidence: ${conf}%`,
+    "",
+    `Strengths: ${strengths.join(", ") || "—"}`,
+    `Priorities: ${priorities.join(", ") || "—"}`,
+    "",
+    "Quick action plan (next 1–2 weeks):",
+    actionPlanText,
+    "",
+    "Tip: If you’d like, reply with any questions or schedule a quick review call.",
+  ].join("\n");
+}
+
+function getActionPlanText(strandScores){
+  const keysMath = ["NO","FR","ALG","GEOM","MD"];
+  const keysEng  = ["RL","RI","LANG"].filter(k=> (strandScores[k]?.[1]||0)>0);
+  const rank = (keys)=> keys
+    .map(k=>({k, p: pct(strandScores[k][0], strandScores[k][1])}))
+    .sort((a,b)=> a.p - b.p)
+    .slice(0,2);
+
+  const tips = {
+    NO: "Fluency with multi-digit add/sub; 10-minute daily warm-ups (mixed operations).",
+    FR: "Equivalence with models; number lines → area models → procedures.",
+    ALG:"Translate words→expressions; 1–2 step equations using inverse operations.",
+    GEOM:"Area/perimeter & right-triangle relationships; sketch and label steps.",
+    MD: "Graphs, units, & volume; read tables/plots then solve multi-step problems.",
+    RL: "Theme & inference from character actions; cite two pieces of evidence.",
+    RI: "Main idea, text structure, vocab-in-context; annotate headings/captions.",
+    LANG:"Commas in a series/nonrestrictives; daily 3-minute edit drills."
+  };
+
+  const lines = [];
+  const m = rank(keysMath);
+  if (m.length) {
+    lines.push("Math focus:");
+    m.forEach(x=> lines.push(`- ${x.k} (${x.p}%): ${tips[x.k]}`));
+  }
+  const e = rank(keysEng);
+  if (e.length) {
+    lines.push("English focus:");
+    e.forEach(x=> lines.push(`- ${x.k} (${x.p}%): ${tips[x.k]}`));
+  }
+  return lines.join("\n");
+}
+
+function openPrintWindow(html){
+  const w = window.open("", "_blank", "noopener,noreferrer,width=900,height=700");
+  if (!w) return false;
+  w.document.open();
+  w.document.write(html);
+  w.document.close();
+  w.focus();
+  // Give the browser a tick to render before printing
+  setTimeout(()=>{ try { w.print(); } catch {} }, 200);
+  return true;
+}
+
+function attachReportActions({ reportHtml, emailPayload }) {
+  const dl = document.getElementById("dlBtn");
+  const send = document.getElementById("sendBtn");
+
+  dl?.addEventListener("click", ()=>{
+    const printable = `
+      <!doctype html>
+      <html><head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width,initial-scale=1" />
+        <title>Ripa Diagnostic Report</title>
+        <style>
+          body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;margin:24px;color:#111}
+          .muted{color:#555;font-size:12px}
+          .box{border:1px solid #ddd;border-radius:10px;padding:14px;margin:10px 0}
+          .title{font-size:22px;font-weight:800;margin:0 0 6px}
+          .chip{display:inline-block;padding:4px 10px;border:1px solid #ddd;border-radius:999px;margin:4px 6px 0 0;font-size:12px}
+          @media print { button{display:none} }
+        </style>
+      </head>
+      <body>
+        <div class="title">Ripa Diagnostic — Report</div>
+        <div class="muted">Note: This is an estimate based on a short diagnostic (20 questions). Use it as a guide, not a formal evaluation.</div>
+        <div class="box">${reportHtml}</div>
+        <div class="muted">Generated: ${new Date().toLocaleString()}</div>
+      </body></html>
+    `;
+    const ok = openPrintWindow(printable);
+    if (!ok) alert("Pop-up blocked. Please allow pop-ups to download/print the report.");
+  });
+
+  send?.addEventListener("click", ()=>{
+    const to = (emailPayload.parentEmail || "").trim();
+    if (!to) {
+      alert("No parent email was provided at the start. Enter an email above and re-run the test (or just download the PDF).");
+      return;
+    }
+    const subject = encodeURIComponent("Ripa Diagnostic — Instant Report");
+    const body = encodeURIComponent(buildEmailBody(emailPayload));
+    // Opens the user's default mail client (works on static hosting)
+    window.location.href = `mailto:${encodeURIComponent(to)}?subject=${subject}&body=${body}`;
+  });
+}
+
 /* ---------------- Boot ---------------- */
 export function boot(){
   const gradeSel = document.getElementById("grade");
+  const studentNameEl = document.getElementById("studentName");
+  const parentEmailEl = document.getElementById("parentEmail");
+  const consentEl = document.getElementById("consent");
   const startBtn = document.getElementById("startBtn");
   const mount = document.getElementById("mount");
   const report = document.getElementById("report");
 
   startBtn?.addEventListener("click", ()=>{
     const grade = Number(gradeSel.value || 5);
-    initState(grade);
+    const studentName = (studentNameEl?.value || "").trim();
+    const parentEmail = (parentEmailEl?.value || "").trim();
+    const consentOk = !!consentEl?.checked || !parentEmail; // if no email, skip consent requirement
+    if (parentEmail && !consentOk) {
+      alert("Please confirm you have permission to email this report to a parent/guardian.");
+      return;
+    }
+    initState(grade, studentName, parentEmail);
     report.innerHTML = "";
     setProgress();
     renderCurrent(mount);
