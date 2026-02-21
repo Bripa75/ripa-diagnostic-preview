@@ -394,7 +394,8 @@ export const MATH_ITEMS = [];
 (function buildMath(){
   const strands = ["NO","FR","ALG","GEOM","MD"];
   const perCombo = { [DIFF.CORE]:1, [DIFF.ON]:2, [DIFF.STRETCH]:1 }; // 4 per strand/grade → 20 per grade
-  for (let g=2; g<=8; g++){
+  // Keep generator pool for grades 4–8 unchanged.
+  for (let g=4; g<=8; g++){
     for (const s of strands){
       for (const [diff, cnt] of Object.entries(perCombo)){
         for (let i=0; i<cnt; i++){
@@ -416,6 +417,83 @@ export const MATH_ITEMS = [];
       }
     }
   }
+
+  // -------- Curated, standards-aligned pool for grades 2–3 (new foundation) --------
+  // We keep items multiple-choice and strand-tagged so the adaptive engine can target skills.
+  function mc(grade, strand, diff, stem, answer, choices){
+    MATH_ITEMS.push({
+      id: `CUR-${strand}-${grade}-${diff}-${ri(1000,9999)}`,
+      grade_min: grade,
+      grade_max: grade,
+      strand,
+      diff,
+      stem,
+      choices,
+      answer,
+    });
+  }
+
+  // ===== Grade 2 =====
+  // Number & Operations (2.NBT)
+  mc(2,'NO',DIFF.CORE,'What is 17 + 8?','25',['23','24','25','26']);
+  mc(2,'NO',DIFF.CORE,'What is 43 − 19?','24',['22','24','26','28']);
+  mc(2,'NO',DIFF.ON,'What is 276 + 58?','334',['324','334','344','354']);
+  mc(2,'NO',DIFF.ON,'What is 500 − 236?','264',['254','264','274','284']);
+  mc(2,'NO',DIFF.STRETCH,'What is 708 + 295?','1003',['903','993','1003','1103']);
+  mc(2,'NO',DIFF.STRETCH,'What is 1,000 − 407?','593',['503','593','607','703']);
+
+  // Operations / Algebraic Thinking (equal groups intro, even/odd)
+  mc(2,'ALG',DIFF.CORE,'Which number is even?','14',['11','13','14','15']);
+  mc(2,'ALG',DIFF.CORE,'There are 4 bags. Each bag has 3 apples. How many apples in all?','12',['7','10','12','16']);
+  mc(2,'ALG',DIFF.ON,'Fill in the blank: 5 + 5 + 5 = __ × 5','3',['2','3','4','5']);
+  mc(2,'ALG',DIFF.ON,'Which equation shows 18 split into 3 equal groups?','18 ÷ 3 = 6',['18 − 3 = 15','18 + 3 = 21','18 ÷ 3 = 6','18 × 3 = 54']);
+  mc(2,'ALG',DIFF.STRETCH,'A row has 6 chairs. There are 4 equal rows. How many chairs?','24',['20','22','24','26']);
+
+  // Fractions as equal parts (2.G.3 style)
+  mc(2,'FR',DIFF.CORE,'A shape is split into 2 equal parts. One part is called…','one-half',['one-third','one-fourth','one-half','one-whole']);
+  mc(2,'FR',DIFF.CORE,'Which fraction means 3 equal parts and you have 1 part?','1/3',['1/2','1/3','1/4','3/1']);
+  mc(2,'FR',DIFF.ON,'Which shows 3/4?','4 equal parts, 3 shaded',['3 equal parts, 1 shaded','4 equal parts, 1 shaded','4 equal parts, 3 shaded','2 equal parts, 1 shaded']);
+  mc(2,'FR',DIFF.STRETCH,'Which is bigger?','1/2',['1/3','1/4','1/2','All are equal']);
+
+  // Geometry (shapes)
+  mc(2,'GEOM',DIFF.CORE,'How many sides does a triangle have?','3',['2','3','4','5']);
+  mc(2,'GEOM',DIFF.ON,'A rectangle is split into 4 equal parts. Each part is…','one-fourth',['one-half','one-third','one-fourth','one-eighth']);
+  mc(2,'GEOM',DIFF.STRETCH,'Which shape has 6 sides?','hexagon',['triangle','square','pentagon','hexagon']);
+
+  // Measurement & Data (time, money)
+  mc(2,'MD',DIFF.CORE,'How many cents are in 3 quarters?','75',['25','50','75','100']);
+  mc(2,'MD',DIFF.ON,'You have 2 dimes and 3 pennies. How many cents is that?','23',['13','20','23','25']);
+  mc(2,'MD',DIFF.ON,'If it is 3:10 now, what time will it be in 15 minutes?','3:25',['3:15','3:20','3:25','3:35']);
+  mc(2,'MD',DIFF.STRETCH,'A pencil is 12 cm long. Another pencil is 7 cm long. How many cm longer is the first pencil?','5',['4','5','6','7']);
+
+  // ===== Grade 3 =====
+  // Number & Operations (3.NBT)
+  mc(3,'NO',DIFF.CORE,'What is 386 + 47?','433',['423','433','443','453']);
+  mc(3,'NO',DIFF.CORE,'What is 700 − 458?','242',['232','242','252','262']);
+  mc(3,'NO',DIFF.ON,'Round 268 to the nearest ten.','270',['260','265','270','280']);
+  mc(3,'NO',DIFF.STRETCH,'Which estimate is closest to 498 + 207?','700',['600','700','800','900']);
+
+  // Operations / Algebraic Thinking (3.OA)
+  mc(3,'ALG',DIFF.CORE,'What is 7 × 6?','42',['36','40','42','48']);
+  mc(3,'ALG',DIFF.CORE,'What is 54 ÷ 9?','6',['5','6','7','8']);
+  mc(3,'ALG',DIFF.ON,'Solve for the missing number: __ × 8 = 56','7',['6','7','8','9']);
+  mc(3,'ALG',DIFF.ON,'A box has 5 rows of 4 markers. How many markers?','20',['9','16','20','24']);
+  mc(3,'ALG',DIFF.STRETCH,'Two-step: 24 stickers are shared equally by 6 kids. Then each kid gets 3 more stickers. How many stickers does each kid have now?','7',['6','7','8','9']);
+
+  // Fractions (3.NF)
+  mc(3,'FR',DIFF.CORE,'Which fraction is at the same point as 2/4?','1/2',['1/3','1/2','2/3','3/4']);
+  mc(3,'FR',DIFF.ON,'Which is greater?','3/4',['2/4','3/4','1/4','All are equal']);
+  mc(3,'FR',DIFF.STRETCH,'Which fraction is equivalent to 3/6?','1/2',['1/3','1/2','2/3','3/4']);
+
+  // Measurement & Data (3.MD)
+  mc(3,'MD',DIFF.CORE,'A movie starts at 4:15 and ends at 4:45. How many minutes long is it?','30',['20','25','30','35']);
+  mc(3,'MD',DIFF.ON,'A rectangle is 6 units long and 4 units wide. What is the area?','24',['10','20','24','28']);
+  mc(3,'MD',DIFF.STRETCH,'A rectangle has perimeter 18. Three sides are 4, 4, and 5. What is the missing side?','5',['4','5','6','7']);
+
+  // Geometry (3.G)
+  mc(3,'GEOM',DIFF.CORE,'Which shape is a quadrilateral?','rectangle',['triangle','rectangle','pentagon','hexagon']);
+  mc(3,'GEOM',DIFF.ON,'How many vertices does a pentagon have?','5',['4','5','6','8']);
+  mc(3,'GEOM',DIFF.STRETCH,'A shape is split into 8 equal parts. One part is called…','1/8',['1/4','1/6','1/8','8/1']);
 })();
 
 // ================== Reading Passages ==================
@@ -446,6 +524,40 @@ can tell one lighthouse from another. Many stand on rocky coasts to warn boats a
       {id:"Q4", stem:"Text structure mainly:", choices:["Cause/effect","Poem","Chronology","Dialogue"], answer:"Cause/effect"},
       {id:"Q5", stem:"Best supporting feature:", choices:["Diagram of beams","Recipe","Fairy tale","Song"], answer:"Diagram of beams"},
       {id:"Q6", stem:"What danger do they warn about?", choices:["Rocks","Fog","Birds","Clouds"], answer:"Rocks"}
+    ]
+  },
+  // RL 2–3 (extra medium passage)
+  {
+    id:"RL-2B", grade_band:[2,3], type:"RL",
+    text:`Maya was getting ready to go outside when she noticed one mitten was gone. She looked under the couch, behind the door, and inside her backpack. Nothing.
+
+Then Maya heard a soft meow. Her cat, Pepper, was sitting by the window. Pepper had something fluffy under his paw. Maya walked closer and laughed. It was her mitten!
+
+Maya gently took the mitten and patted Pepper. "You were keeping it safe," she said. Then she put on both mittens and went outside to play.`,
+    questions:[
+      {id:"Q1", stem:"Why did Maya laugh?", choices:["She found her mitten under the couch.","Pepper was holding her missing mitten.","She did not want to go outside.","She lost both mittens."], answer:"Pepper was holding her missing mitten."},
+      {id:"Q2", stem:"What can you infer about Pepper?", choices:["He wanted to help Maya.","He was afraid of mittens.","He did not like Maya.","He was looking for food."], answer:"He wanted to help Maya."},
+      {id:"Q3", stem:"Which detail shows Maya searched carefully?", choices:["She patted Pepper.","She looked under the couch.","She went outside.","She laughed."], answer:"She looked under the couch."},
+      {id:"Q4", stem:"What is the setting?", choices:["Outside in a park","At home","At a store","On a bus"], answer:"At home"},
+      {id:"Q5", stem:"How does Maya feel at the end?", choices:["Worried","Happy","Angry","Sleepy"], answer:"Happy"},
+      {id:"Q6", stem:"Main idea best stated:", choices:["Pets always hide things.","Looking carefully can solve a problem.","Mittens are expensive.","Windows are cold."], answer:"Looking carefully can solve a problem."}
+    ]
+  },
+  // RI 2–3 (extra medium passage)
+  {
+    id:"RI-3B", grade_band:[2,3], type:"RI",
+    text:`Bees are small insects, but they do big work. When a bee visits a flower, it sips sweet nectar. While the bee drinks, yellow pollen sticks to its body.
+
+Next, the bee flies to another flower. Some of the pollen falls off. This helps the new flower make seeds. This process is called pollination.
+
+Pollination helps many plants grow, including fruits and vegetables. That means bees help farmers and people, too.`,
+    questions:[
+      {id:"Q1", stem:"What is the main idea of the passage?", choices:["Bees are dangerous insects.","Bees help plants grow by moving pollen.","Bees only visit one flower.","Bees sleep inside flowers."], answer:"Bees help plants grow by moving pollen."},
+      {id:"Q2", stem:"What is pollination?", choices:["When pollen moves to another flower.","When flowers change colors.","When nectar turns into honey.","When bees sleep in hives."], answer:"When pollen moves to another flower."},
+      {id:"Q3", stem:"Which detail supports the main idea?", choices:["Bees are small insects.","Pollen sticks to the bee’s body.","Flowers smell nice.","Vegetables are healthy."], answer:"Pollen sticks to the bee’s body."},
+      {id:"Q4", stem:"What do bees sip from flowers?", choices:["Nectar","Water","Seeds","Leaves"], answer:"Nectar"},
+      {id:"Q5", stem:"Why are bees helpful to people?", choices:["They help fruits and vegetables grow.","They make rocks softer.","They make storms stop.","They turn flowers into trees."], answer:"They help fruits and vegetables grow."},
+      {id:"Q6", stem:"This passage is mostly—", choices:["A story","Information","A poem","A letter"], answer:"Information"}
     ]
   },
   // RL 4–5
@@ -535,7 +647,7 @@ her pauses became choices, her voice a metronome.`,
 // ================== Language Items (expanded) ==================
 export const LANG_ITEMS = [];
 (function buildLang(){
-  const grades = [2,3,4,5,6,7,8];
+  const grades = [4,5,6,7,8];
 
   function commasSeries(){
     return {
@@ -707,13 +819,7 @@ export const LANG_ITEMS = [];
   }
 
   grades.forEach(g=>{
-    if (g === 2 || g === 3){
-      LANG_ITEMS.push(make("SER", g, DIFF.CORE, commasSeries));
-      LANG_ITEMS.push(make("CAP", g, DIFF.CORE, capitalization));
-      LANG_ITEMS.push(make("SV",  g, DIFF.ON,   subjectVerb));
-      LANG_ITEMS.push(make("CTX", g, DIFF.ON,   contextClues));
-      LANG_ITEMS.push(make("ROOT",g, DIFF.STRETCH, rootsAffixes));
-    } else if (g === 4 || g === 5){
+    if (g === 4 || g === 5){
       LANG_ITEMS.push(make("SER", g, DIFF.CORE, commasSeries));
       LANG_ITEMS.push(make("SV",  g, DIFF.ON,   subjectVerb));
       LANG_ITEMS.push(make("TNS", g, DIFF.ON,   verbTenseShift));
@@ -743,6 +849,60 @@ export const LANG_ITEMS = [];
       LANG_ITEMS.push(make("MOD", g, DIFF.STRETCH, modifiers));
     }
   });
+
+  // -------- Curated, standards-aligned pool for grades 2–3 (new foundation) --------
+  function mc(grade, diff, stem, answer, choices){
+    LANG_ITEMS.push({
+      id: `CUR-LANG-${grade}-${diff}-${ri(1000,9999)}`,
+      grade_min: grade,
+      grade_max: grade,
+      strand: "LANG",
+      diff,
+      stem,
+      choices,
+      answer,
+    });
+  }
+
+  // ===== Grade 2 =====
+  mc(2, DIFF.CORE, 'Choose the sentence that is a question.', 'Where is my book?', [
+    'Where is my book?',
+    'I like pizza.',
+    'Close the door.',
+    'Wow, that is cool!'
+  ]);
+  mc(2, DIFF.CORE, 'Which word is a noun?', 'dog', ['quickly','dog','run','blue']);
+  mc(2, DIFF.CORE, 'Choose the correct plural word.', 'buses', ['bus','buss','buses','bus']);
+  mc(2, DIFF.ON, "Choose the correct contraction for do not.", "don't", ['dont',"don't",'do not','doesnt']);
+  mc(2, DIFF.ON, 'Choose the correct sentence with capitals and end punctuation.', 'My friend Sam is here.', [
+    'my friend Sam is here',
+    'My friend sam is here',
+    'My friend Sam is here.',
+    'My friend Sam is here'
+  ]);
+  mc(2, DIFF.STRETCH, 'Which word best completes the sentence? “She ___ to school.”', 'walks', ['walk','walks','walking','walked']);
+
+  // ===== Grade 3 =====
+  mc(3, DIFF.CORE, 'Which sentence has a compound subject?', 'Tom and Mia play soccer.', [
+    'Tom plays soccer.',
+    'Tom and Mia play soccer.',
+    'Tom plays soccer today.',
+    'Soccer is fun.'
+  ]);
+  mc(3, DIFF.CORE, 'Choose the correct verb: “The dogs ___ loud.”', 'bark', ['bark','barks','barking','barked']);
+  mc(3, DIFF.ON, 'Choose the sentence with the correct comma.', 'On Saturday, we went to the park.', [
+    'On Saturday we went, to the park.',
+    'On Saturday, we went to the park.',
+    'On Saturday we went to the park,',
+    'On, Saturday we went to the park.'
+  ]);
+  mc(3, DIFF.ON, 'Choose the correct pronoun: “___ went to the store.”', 'She', ['Her','She','Him','Me']);
+  mc(3, DIFF.STRETCH, 'Choose the correct sentence (past tense).', 'We ran to the bus stop.', [
+    'We run to the bus stop.',
+    'We running to the bus stop.',
+    'We ran to the bus stop.',
+    'We will run to the bus stop.'
+  ]);
 })();
 
 // ================== (Optional) Simple 20-item flat pool ==================
