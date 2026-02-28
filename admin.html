@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Ripa Diagnostic — Admin (Generate Codes)</title>
+    <link rel="stylesheet" href="styles.css" />
+    <style>
+      .wrap{max-width:920px;margin:40px auto;padding:0 16px}
+      .card{background:#151a22;border:1px solid rgba(255,255,255,.08);border-radius:16px;padding:18px}
+      .row{display:flex;gap:12px;flex-wrap:wrap;align-items:end}
+      .row .field{flex:1;min-width:220px}
+      .label{display:block;margin:8px 0 6px;color:rgba(255,255,255,.75);font-size:13px}
+      .btn{width:100%}
+      .out{font-size:18px;letter-spacing:1px}
+      .muted{color:rgba(255,255,255,.6)}
+      .ok{color:#7CFFB2}
+      .err{color:#ff7c7c}
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+        <h1 style="margin:0">Admin — Generate Access Codes</h1>
+        <a class="btn" style="max-width:160px;text-align:center" href="diagnostic-test.html">Back to Test</a>
+      </div>
+
+      <p class="muted">
+        This page is for you (admin) only. You’ll sign in with a Supabase Auth user, then generate one-time access codes.
+      </p>
+
+      <div class="card" style="margin-top:14px">
+        <h2 style="margin:0 0 10px 0">1) Admin Login</h2>
+        <div class="row">
+          <div class="field">
+            <label class="label">Admin email</label>
+            <input id="adminEmail" class="btn" placeholder="you@email.com" style="padding:10px 12px" />
+          </div>
+          <div class="field">
+            <label class="label">Password</label>
+            <input id="adminPass" type="password" class="btn" placeholder="••••••••" style="padding:10px 12px" />
+          </div>
+          <div class="field" style="max-width:180px">
+            <button id="loginBtn" class="btn primary" type="button">Sign in</button>
+          </div>
+          <div class="field" style="max-width:180px">
+            <button id="logoutBtn" class="btn" type="button">Sign out</button>
+          </div>
+        </div>
+        <div id="loginStatus" class="muted" style="margin-top:10px"></div>
+      </div>
+
+      <div class="card" style="margin-top:14px">
+        <h2 style="margin:0 0 10px 0">2) Generate Code</h2>
+        <div class="row">
+          <div class="field">
+            <label class="label">Customer email (optional)</label>
+            <input id="customerEmail" class="btn" placeholder="parent@email.com" style="padding:10px 12px" />
+          </div>
+          <div class="field" style="max-width:240px">
+            <label class="label">Expires in (hours)</label>
+            <input id="expiresHours" class="btn" value="168" style="padding:10px 12px" />
+          </div>
+          <div class="field" style="max-width:220px">
+            <button id="genBtn" class="btn primary" type="button">Generate</button>
+          </div>
+        </div>
+
+        <div style="margin-top:12px">
+          <div class="muted">Generated code:</div>
+          <div id="codeOut" class="out" style="margin-top:6px">—</div>
+          <div style="margin-top:10px;display:flex;gap:10px;flex-wrap:wrap">
+            <button id="copyBtn" class="btn" type="button" style="max-width:200px">Copy code</button>
+            <span id="genStatus" class="muted" style="align-self:center"></span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script type="module" src="admin.js"></script>
+  </body>
+</html>

@@ -2,6 +2,16 @@
 
 import { DIFF, MATH_ITEMS, PASSAGES, LANG_ITEMS } from './bank.js';
 
+// Supabase (for access codes)
+import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from "./supabase-config.js";
+
+const supabase = (SUPABASE_URL.startsWith("http") && SUPABASE_ANON_KEY.length > 20)
+  ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+  : null;
+
+let currentAccessCode = null;
+
 /* ---------------- Config ---------------- */
 const TARGET = { math: 10, english: 10 }; // per student
 
@@ -26,6 +36,41 @@ const between = (n,a,b)=> n>=a && n<=b;
 const pickOne = (arr)=> arr[Math.floor(Math.random()*arr.length)];
 const clamp = (v,a,b)=> Math.max(a, Math.min(b,v));
 const pct = (c,t)=> t ? Math.round(100*c/t) : 0;
+
+/* ---------------- Access Code (Supabase) ---------------- */
+function showAccessError(msg){
+  const el = document.getElementById('accessError');
+  if (!el) return;
+  el.style.display = msg ? 'block' : 'none';
+  el.textContent = msg || '';
+}
+
+async function validateAccessCode(code){
+  if (!supabase) throw new Error('Supabase not configured. Update supabase-config.js');
+  const trimmed = (code || '').trim();
+  if (!trimmed) return { ok:false, reason:'Please enter your access code.' };
+
+  const { data, error } = await supabase
+    .from('access_codes')
+    .select('id, code')
+    .eq('code', trimmed)
+    .limit(1)
+    .maybeSingle();
+
+  if (error) return { ok:false, reason:`Access code check failed: ${error.message}` };
+  if (!data) return { ok:false, reason:'That access code is invalid or expired.' };
+  return { ok:true, code: trimmed };
+}
+
+async function consumeAccessCode(code){
+  if (!supabase || !code) return;
+  // Mark as used at the END (prevents most sharing; still lets refresh mid-test).
+  await supabase
+    .from('access_codes')
+    .update({ used: true })
+    .eq('code', code)
+    .eq('used', false);
+}
 
 function flattenPassageQuestion(p, q, diffTag){
   return {
@@ -433,6 +478,10 @@ function finishTest(){
   mount.innerHTML = "";
   mount.append(el("p",{class:"examMuted"},"Test complete. See Instant Report below."));
 
+  // Consume the access code at the end (single-use).
+  // If you prefer to consume at START, move this into the Start button handler.
+  try { consumeAccessCode(currentAccessCode); } catch(e) {}
+
   const pf = document.getElementById("progFill");
   if (pf) pf.style.width = "100%";
 
@@ -695,6 +744,7 @@ export function boot(){
   const studentNameEl = document.getElementById("studentName");
   const parentEmailEl = document.getElementById("parentEmail");
   const consentEl = document.getElementById("consent");
+  const accessCodeEl = document.getElementById("accessCode");
   const startBtn = document.getElementById("startBtn");
   const mount = document.getElementById("mount");
   const report = document.getElementById("report");
@@ -703,15 +753,36 @@ export function boot(){
     const grade = Number(gradeSel.value || 5);
     const studentName = (studentNameEl?.value || "").trim();
     const parentEmail = (parentEmailEl?.value || "").trim();
+    const enteredCode = (accessCodeEl?.value || "").trim();
     const consentOk = !!consentEl?.checked || !parentEmail; // if no email, skip consent requirement
     if (parentEmail && !consentOk) {
       alert("Please confirm you have permission to email this report to a parent/guardian.");
       return;
     }
-    initState(grade, studentName, parentEmail);
-    report.innerHTML = "";
-    setProgress();
-    renderCurrent(mount);
+
+    showAccessError("");
+
+    const begin = ()=>{
+      currentAccessCode = enteredCode || null;
+      initState(grade, studentName, parentEmail);
+      report.innerHTML = "";
+      setProgress();
+      renderCurrent(mount);
+    };
+
+    // If Supabase isn't configured yet, let you keep testing.
+    if (!supabase) return begin();
+
+    validateAccessCode(enteredCode).then(res=>{
+      if (!res.ok) {
+        showAccessError(res.reason);
+        return;
+      }
+      currentAccessCode = res.code;
+      begin();
+    }).catch(err=>{
+      showAccessError(err?.message || "Access code check failed.");
+    });
   });
 }
 
