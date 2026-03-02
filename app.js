@@ -52,31 +52,33 @@ function showAccessError(msg){
   el.textContent = msg || '';
 }
 
-async function validateAccessCode(code){
-  if (!supabase) throw new Error('Supabase not configured. Update supabase-config.js');
-  const trimmed = (code || '').trim();
-  if (!trimmed) return { ok:false, reason:'Please enter your access code.' };
+// ✅ Validate+consume in ONE call using your SQL function redeem_access_code(code_input text) returns boolean
+async function redeemAccessCode(code){
+  if (!supabase) {
+    return { ok:false, reason:"Setup required: Supabase not configured. Check supabase-config.js" };
+  }
 
-  const { data, error } = await supabase
-    .from('access_codes')
-    .select('id, code')
-    .eq('code', trimmed)
-    .limit(1)
-    .maybeSingle();
+  const cleaned = (code || "").trim().toUpperCase();
+  if (!cleaned) return { ok:false, reason:"Please enter your access code." };
 
-  if (error) return { ok:false, reason:`Access code check failed: ${error.message}` };
-  if (!data) return { ok:false, reason:'That access code is invalid or expired.' };
-  return { ok:true, code: trimmed };
-}
+  // Optional: your generator produces 8 hex chars. Keeps input clean.
+  if (!/^[A-F0-9]{8}$/.test(cleaned)) {
+    return { ok:false, reason:"That access code format looks wrong." };
+  }
 
-async function consumeAccessCode(code){
-  if (!supabase || !code) return;
-  // Mark as used at the END (prevents most sharing; still lets refresh mid-test).
-  await supabase
-    .from('access_codes')
-    .update({ used: true })
-    .eq('code', code)
-    .eq('used', false);
+  const { data, error } = await supabase.rpc("redeem_access_code", { code_input: cleaned });
+
+  if (error) {
+    console.error("redeem_access_code rpc error:", error);
+    return { ok:false, reason:"Access code check failed (database)." };
+  }
+
+  // data should be true/false
+  if (data !== true) {
+    return { ok:false, reason:"Code invalid, expired, or already used." };
+  }
+
+  return { ok:true, code: cleaned };
 }
 
 function flattenPassageQuestion(p, q, diffTag){
@@ -94,8 +96,6 @@ function qIndexToDiff(i){ return i<=1 ? DIFF.CORE : i<=3 ? DIFF.ON : DIFF.STRETC
 
 /* Build grade-scoped pools */
 function buildPools(grade){
-  // Adaptive stretch: allow some next-grade items in STRETCH.
-  // Example: a strong 2nd grader can see some 3rd grade questions.
   const nextGrade = Math.min(8, grade + 1);
 
   const mathByDiff = {
@@ -106,7 +106,6 @@ function buildPools(grade){
 
   if (nextGrade !== grade){
     const nextMath = MATH_ITEMS.filter(it => between(nextGrade, it.grade_min, it.grade_max));
-    // Push next-grade items into STRETCH regardless of their original diff.
     mathByDiff[DIFF.STRETCH].push(...nextMath.map(it => ({ ...it, diff: DIFF.STRETCH })));
   }
 
@@ -148,7 +147,6 @@ function buildPools(grade){
 }
 
 /* ---------------- Difficulty buffer: 2-in-a-row to move ---------------- */
-// +2 correct in a row → bump difficulty; -2 wrong in a row → drop.
 function adjustDiff2(curDiff, buf, isCorrect){
   const nextBuf = isCorrect ? Math.min(2, buf + 1) : Math.max(-2, buf - 1);
   if (nextBuf >= 2)  return { diff: (curDiff===DIFF.CORE ? DIFF.ON : DIFF.STRETCH), buf: 0 };
@@ -158,14 +156,12 @@ function adjustDiff2(curDiff, buf, isCorrect){
 
 /* ---------------- Coverage plans ---------------- */
 function buildMathPlan(){
-  // Two of each strand → 10 slots
   const strands = ["NO","FR","ALG","GEOM","MD"];
   const plan = [...strands, ...strands];
   for (let i = plan.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     [plan[i], plan[j]] = [plan[j], plan[i]];
   }
-  // avoid adjacents
   for (let i=1; i<plan.length; i++){
     if (plan[i] === plan[i-1]){
       const swapWith = (i+1 < plan.length) ? i+1 : i-2;
@@ -178,7 +174,6 @@ function buildMathPlan(){
 }
 
 function buildEnglishPlan(){
-  // 4 RL + 4 RI + 2 LANG → 10 slots
   const plan = ["RL","RL","RL","RL","RI","RI","RI","RI","LANG","LANG"];
   for (let i = plan.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
@@ -201,16 +196,14 @@ function takeFromWithKey(poolMap, wantDiff, usedIds, seenSet, keyField, keyValue
               : wantDiff===DIFF.ON   ? [DIFF.ON, DIFF.CORE, DIFF.STRETCH]
               :                        [DIFF.STRETCH, DIFF.ON];
 
-  // Pass 1: unseen + unused
   for (const d of order){
-    const pool = poolMap[d].filter(x =>
+    const pool = (poolMap[d] || []).filter(x =>
       !usedIds.has(x.id) && !seenSet.has(x.id) && (keyValue ? x[keyField]===keyValue : true)
     );
     if (pool.length) return { item: pickOne(pool), usedDiff: d };
   }
-  // Pass 2: allow seen, still avoid used
   for (const d of order){
-    const pool = poolMap[d].filter(x =>
+    const pool = (poolMap[d] || []).filter(x =>
       !usedIds.has(x.id) && (keyValue ? x[keyField]===keyValue : true)
     );
     if (pool.length) return { item: pickOne(pool), usedDiff: d };
@@ -236,9 +229,8 @@ let state = null;
 /* ---------------- Email notify helper (Formspree hidden form) ---------------- */
 function notifyViaFormspree({ grade, mathPct, engPct, conf, mathLevel, elaLevel, summary }) {
   const form = document.getElementById('notifyForm');
-  if (!form) return; // no-op if the form isn't on the page
+  if (!form) return;
 
-  // basic client-side throttling (prevents spam / double-submits)
   try {
     const last = Number(localStorage.getItem(NOTIFY_TS_KEY) || 0);
     const now = Date.now();
@@ -257,8 +249,9 @@ function notifyViaFormspree({ grade, mathPct, engPct, conf, mathLevel, elaLevel,
   set('notify-mathLevel', (mathLevel?.toFixed ? mathLevel.toFixed(1) : mathLevel));
   set('notify-elaLevel', (elaLevel?.toFixed ? elaLevel.toFixed(1) : elaLevel));
   set('notify-summary', summary);
-  set('notify-student', studentName || '');
-  set('notify-parentEmail', parentEmail || '');
+  set('notify-student', state?.studentName || '');
+  set('notify-parentEmail', state?.parentEmail || '');
+
   try { form.submit(); } catch (e) { console.warn('Formspree submit failed', e); }
 }
 
@@ -308,7 +301,7 @@ function el(tag, attrs={}, children=[]){
   return node;
 }
 
-// ✅ keep only THIS progress function (remove duplicates)
+// ✅ keep only THIS progress function
 function setProgress(){
   const pf = document.getElementById("progFill");
   if (!pf || !state) return;
@@ -485,10 +478,7 @@ function finishTest(){
   mount.innerHTML = "";
   mount.append(el("p",{class:"examMuted"},"Test complete. See Instant Report below."));
 
-  // Consume the access code at the end (single-use).
-  // If you prefer to consume at START, move this into the Start button handler.
-  try { consumeAccessCode(currentAccessCode); } catch(e) {}
-
+  // ✅ DO NOT consume again here (we redeemed at START)
   const pf = document.getElementById("progFill");
   if (pf) pf.style.width = "100%";
 
@@ -570,20 +560,6 @@ function finishTest(){
       <p class="examMuted" style="margin-top:8px">Structure: Mini-lesson (8–10m) → Guided (15m) → Independent (15m) → 2–3Q exit ticket.</p>
     </div>
 
-    <div class="statCard" style="margin-top:12px">
-      <div class="label">Next step (optional)</div>
-      <div class="mini">Want a quick walkthrough of these results and a personalized plan?</div>
-      <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
-        <a class="btn primary" href="mailto:ripaelevateacademy@gmail.com?subject=Diagnostic%20Review%20Call&body=Hi%20Brian%2C%20I%20just%20finished%20the%20diagnostic%20and%20would%20like%20a%20quick%20review%20call." style="text-decoration:none">Book a 15‑min review</a>
-        <span class="btnGhost" style="pointer-events:none">Detailed report (coming soon)</span>
-      </div>
-    </div>
-
-    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
-      <button class="btnGhost" id="dlBtn">Download PDF</button>
-      <button class="btnGhost" id="sendBtn">Send to Tutor</button>
-    </div>
-
     <div class="examMuted" style="margin-top:12px">Mini-FAQ: Grades 2–8 • Length: 20 adaptive questions • Private: runs in the browser; only results you submit are saved.</div>
   `;
 
@@ -634,117 +610,6 @@ function renderActionPlan(strandScores){
   `;
 }
 
-/* ---------------- Report actions (PDF + email) ---------------- */
-function buildEmailBody({ studentName, grade, mathPct, engPct, conf, curMathGL, curEngGL, strengths, priorities, actionPlanText }) {
-  const nameLine = studentName ? `Student: ${studentName}` : "Student: (not provided)";
-  return [
-    "Ripa Diagnostic — Instant Report",
-    nameLine,
-    `Grade reference: ${grade}`,
-    "",
-    `Math: ${mathPct}% (est. level ${curMathGL.toFixed(1)})`,
-    `ELA:  ${engPct}% (est. level ${curEngGL.toFixed(1)})`,
-    `Overall confidence: ${conf}%`,
-    "",
-    `Strengths: ${strengths.join(", ") || "—"}`,
-    `Priorities: ${priorities.join(", ") || "—"}`,
-    "",
-    "Quick action plan (next 1–2 weeks):",
-    actionPlanText,
-    "",
-    "Tip: If you’d like, reply with any questions or schedule a quick review call.",
-  ].join("\n");
-}
-
-function getActionPlanText(strandScores){
-  const keysMath = ["NO","FR","ALG","GEOM","MD"];
-  const keysEng  = ["RL","RI","LANG"].filter(k=> (strandScores[k]?.[1]||0)>0);
-  const rank = (keys)=> keys
-    .map(k=>({k, p: pct(strandScores[k][0], strandScores[k][1])}))
-    .sort((a,b)=> a.p - b.p)
-    .slice(0,2);
-
-  const tips = {
-    NO: "Fluency with multi-digit add/sub; 10-minute daily warm-ups (mixed operations).",
-    FR: "Equivalence with models; number lines → area models → procedures.",
-    ALG:"Translate words→expressions; 1–2 step equations using inverse operations.",
-    GEOM:"Area/perimeter & right-triangle relationships; sketch and label steps.",
-    MD: "Graphs, units, & volume; read tables/plots then solve multi-step problems.",
-    RL: "Theme & inference from character actions; cite two pieces of evidence.",
-    RI: "Main idea, text structure, vocab-in-context; annotate headings/captions.",
-    LANG:"Commas in a series/nonrestrictives; daily 3-minute edit drills."
-  };
-
-  const lines = [];
-  const m = rank(keysMath);
-  if (m.length) {
-    lines.push("Math focus:");
-    m.forEach(x=> lines.push(`- ${x.k} (${x.p}%): ${tips[x.k]}`));
-  }
-  const e = rank(keysEng);
-  if (e.length) {
-    lines.push("English focus:");
-    e.forEach(x=> lines.push(`- ${x.k} (${x.p}%): ${tips[x.k]}`));
-  }
-  return lines.join("\n");
-}
-
-function openPrintWindow(html){
-  const w = window.open("", "_blank", "noopener,noreferrer,width=900,height=700");
-  if (!w) return false;
-  w.document.open();
-  w.document.write(html);
-  w.document.close();
-  w.focus();
-  // Give the browser a tick to render before printing
-  setTimeout(()=>{ try { w.print(); } catch {} }, 200);
-  return true;
-}
-
-function attachReportActions({ reportHtml, emailPayload }) {
-  const dl = document.getElementById("dlBtn");
-  const send = document.getElementById("sendBtn");
-
-  dl?.addEventListener("click", ()=>{
-    const printable = `
-      <!doctype html>
-      <html><head>
-        <meta charset="utf-8" />
-        <meta name="viewport" content="width=device-width,initial-scale=1" />
-        <title>Ripa Diagnostic Report</title>
-        <style>
-          body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;margin:24px;color:#111}
-          .muted{color:#555;font-size:12px}
-          .box{border:1px solid #ddd;border-radius:10px;padding:14px;margin:10px 0}
-          .title{font-size:22px;font-weight:800;margin:0 0 6px}
-          .chip{display:inline-block;padding:4px 10px;border:1px solid #ddd;border-radius:999px;margin:4px 6px 0 0;font-size:12px}
-          @media print { button{display:none} }
-        </style>
-      </head>
-      <body>
-        <div class="title">Ripa Diagnostic — Report</div>
-        <div class="muted">Note: This is an estimate based on a short diagnostic (20 questions). Use it as a guide, not a formal evaluation.</div>
-        <div class="box">${reportHtml}</div>
-        <div class="muted">Generated: ${new Date().toLocaleString()}</div>
-      </body></html>
-    `;
-    const ok = openPrintWindow(printable);
-    if (!ok) alert("Pop-up blocked. Please allow pop-ups to download/print the report.");
-  });
-
-  send?.addEventListener("click", ()=>{
-    const to = (emailPayload.parentEmail || "").trim();
-    if (!to) {
-      alert("No parent email was provided at the start. Enter an email above and re-run the test (or just download the PDF).");
-      return;
-    }
-    const subject = encodeURIComponent("Ripa Diagnostic — Instant Report");
-    const body = encodeURIComponent(buildEmailBody(emailPayload));
-    // Opens the user's default mail client (works on static hosting)
-    window.location.href = `mailto:${encodeURIComponent(to)}?subject=${subject}&body=${body}`;
-  });
-}
-
 /* ---------------- Boot ---------------- */
 export function boot(){
   const gradeSel = document.getElementById("grade");
@@ -756,12 +621,13 @@ export function boot(){
   const mount = document.getElementById("mount");
   const report = document.getElementById("report");
 
-  startBtn?.addEventListener("click", ()=>{
-    const grade = Number(gradeSel.value || 5);
+  startBtn?.addEventListener("click", async ()=>{
+    const grade = Number(gradeSel?.value || 5);
     const studentName = (studentNameEl?.value || "").trim();
     const parentEmail = (parentEmailEl?.value || "").trim();
     const enteredCode = (accessCodeEl?.value || "").trim();
-    const consentOk = !!consentEl?.checked || !parentEmail; // if no email, skip consent requirement
+    const consentOk = !!consentEl?.checked || !parentEmail;
+
     if (parentEmail && !consentOk) {
       alert("Please confirm you have permission to email this report to a parent/guardian.");
       return;
@@ -769,38 +635,29 @@ export function boot(){
 
     showAccessError("");
 
-    const begin = ()=>{
-      currentAccessCode = enteredCode || null;
-      initState(grade, studentName, parentEmail);
-      report.innerHTML = "";
-      setProgress();
-      renderCurrent(mount);
-    };
-
-    // Supabase is required when access codes are enabled.
     if (!supabase) {
-      showToast('Setup required: configure Supabase keys in supabase-config.js');
-      statusLine.textContent = 'Setup required: access codes enabled but Supabase not configured.';
+      showAccessError("Setup required: Supabase not configured. Check supabase-config.js");
       return;
     }
-validateAccessCode(enteredCode).then(async (res) => {
+
+    try {
+      // ✅ Redeem BEFORE starting (single-use, prevents sharing)
+      const res = await redeemAccessCode(enteredCode);
       if (!res.ok) {
         showAccessError(res.reason);
         return;
       }
 
-      // Redeem BEFORE starting (prevents sharing/reuse).
-      const redeemed = await consumeAccessCode(res.code);
-      if (!redeemed) {
-        showAccessError("Code invalid, expired, or already used.");
-        return;
-      }
-
       currentAccessCode = res.code;
-      begin();
-    }).catch((err) => {
+
+      // start test
+      initState(grade, studentName, parentEmail);
+      report.innerHTML = "";
+      setProgress();
+      renderCurrent(mount);
+    } catch (err) {
       showAccessError(err?.message || "Access code check failed.");
-    });
+    }
   });
 }
 
@@ -812,4 +669,3 @@ if (typeof window !== 'undefined') {
     boot();
   }
 }
-
