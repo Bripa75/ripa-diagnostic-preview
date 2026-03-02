@@ -6,9 +6,16 @@ import { DIFF, MATH_ITEMS, PASSAGES, LANG_ITEMS } from './bank.js';
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from "./supabase-config.js";
 
-const supabase = (SUPABASE_URL.startsWith("http") && SUPABASE_ANON_KEY.length > 20)
-  ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
-  : null;
+const _looksLikePlaceholder = (v) =>
+  !v || typeof v !== "string" || v.includes("PASTE_YOUR_SUPABASE");
+
+const supabase =
+  !_looksLikePlaceholder(SUPABASE_URL) &&
+  !_looksLikePlaceholder(SUPABASE_ANON_KEY) &&
+  SUPABASE_URL.startsWith("http") &&
+  SUPABASE_ANON_KEY.length > 20
+    ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+    : null;
 
 let currentAccessCode = null;
 
@@ -770,17 +777,28 @@ export function boot(){
       renderCurrent(mount);
     };
 
-    // If Supabase isn't configured yet, let you keep testing.
-    if (!supabase) return begin();
-
-    validateAccessCode(enteredCode).then(res=>{
+    // Supabase is required when access codes are enabled.
+    if (!supabase) {
+      showToast('Setup required: configure Supabase keys in supabase-config.js');
+      statusLine.textContent = 'Setup required: access codes enabled but Supabase not configured.';
+      return;
+    }
+validateAccessCode(enteredCode).then(async (res) => {
       if (!res.ok) {
         showAccessError(res.reason);
         return;
       }
+
+      // Redeem BEFORE starting (prevents sharing/reuse).
+      const redeemed = await consumeAccessCode(res.code);
+      if (!redeemed) {
+        showAccessError("Code invalid, expired, or already used.");
+        return;
+      }
+
       currentAccessCode = res.code;
       begin();
-    }).catch(err=>{
+    }).catch((err) => {
       showAccessError(err?.message || "Access code check failed.");
     });
   });
